@@ -1,0 +1,170 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "16/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(raster)
+library(ggplot2)
+```
+
+# Improved wastewater treatment scenario
+
+## N and P emissions within STP catchment areas without treatment
+
+STP N and P values
+
+```{r}
+stp<-st_read("output_data/Sewage_plants/Nutrients_at_STP.shp") %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+```
+
+
+## Nutrient removal
+
+See how nutrients change with incremental 1% increase in nutrient removal efficiency for each STP (do from 0-100% and then can mark where current levels are)
+
+Max treatment efficiency = 90% for N and 95% for P, equivalent to tertiary treatment
+
+Current nutrient removal efficiencies
+
+```{r}
+seq_rm<-seq(0,1, 0.001)
+
+S<-unique(stp$STP)
+
+all<-c()
+
+for(i in 1:length(S)){
+  
+  sub_stp<-stp %>% 
+    filter(STP == S[[i]])
+  
+  name<-S[[i]]
+  ID<-sub_stp$ID
+  
+  print(name)
+  
+  N_vals<-seq_rm * sub_stp$N_ntrtm
+  P_vals<-seq_rm * sub_stp$P_ntrtm
+  
+  done<-data.frame(STP = name, ID = ID, rm_eff = seq_rm, N = N_vals, P = P_vals)
+  
+  all<-rbind(all, done)
+  
+}
+```
+
+# Plots
+
+Plot contribution of each STP to total N and P values
+
+```{r}
+stp_plot<-stp %>% 
+  dplyr::select(STP, N, P) 
+
+stp_plot<-stp_plot %>% 
+  mutate(prop_N = N/sum(stp_plot$N),
+         prop_P = P/sum(stp_plot$P)) %>% 
+  pivot_longer(., cols = c("prop_N", "prop_P"), names_to = "type", values_to = "prop")
+
+ggplot(stp_plot, aes(fill=reorder(STP, prop, desc = T), y=prop, x=type)) + 
+    geom_bar(position="stack", stat="identity") +
+    theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Nutrient type") +
+  ylab("Proportion of total nutrients")
+```
+
+
+Plot how final N and P values change with increased nutrient removal efficiency
+
+Total
+
+```{r}
+total<-all %>% 
+  group_by(rm_eff) %>% 
+  summarise(N_all = sum(N, na.rm = T),
+            P_all = sum(P, na.rm = T)) %>% 
+  pivot_longer(., cols = c("N_all", "P_all"), names_to = "type", values_to = "value")
+```
+```{r}
+ggplot(total, aes(x = rm_eff, y = value/100000, col = type)) +
+  geom_line() +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Removal Efficiency") +
+  ylab("Nutrients (hundreds of thousands)")
+```
+
+
+By STP
+
+
+```{r}
+
+all_long<-all %>% 
+  pivot_longer(., cols = c("N", "P"), names_to = "type", values_to = "value")
+
+nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+  mutate(ID = ifelse(STP == "ACS", 1,
+                     ifelse(STP == "Deuba", 2,
+                            ifelse(STP == "Kinoya", 3,
+                                   ifelse(STP == "Naboro", 4,
+                                          ifelse(STP == "Nadali", 5,
+                                                 ifelse(STP ==  "Namara", 6,
+                                                        ifelse(STP == "Lautoka", 7,
+                                                               ifelse(STP ==  "Navakai", 8,
+                                                                      ifelse(STP == "Olosara", 9,
+                                                                             ifelse(STP == "Ba", 10,
+                                                                                    ifelse(STP == "Wailada", 11, NA)))))))))))) %>% 
+  dplyr::select(ID, rm_eff, type) %>% 
+  rename(actual_eff = rm_eff) %>% 
+  mutate(actual_eff = round(actual_eff, 3)) %>% 
+  full_join(., all_long, by = c("ID", "type")) %>% 
+  mutate(rm_eff = round(rm_eff, 3)) 
+
+```
+
+
+N
+```{r}
+N_plot<-nutri_removal %>% 
+  filter(type == "N") %>% 
+  mutate(xpoints = ifelse(actual_eff == rm_eff, actual_eff, NA),
+         ypoints = ifelse(actual_eff == rm_eff, value, NA))
+
+ggplot(N_plot, aes(x = rm_eff, y = value/100000, col = STP)) +
+  geom_line() +
+  geom_point(aes(x = xpoints, y = ypoints/100000)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Nitrogen removal efficiency") +
+  ylab("Nitrogen (hundreds of thousands)")
+```
+P
+```{r}
+P_plot<-nutri_removal %>% 
+  filter(type == "P") %>% 
+  mutate(xpoints = ifelse(actual_eff == rm_eff, actual_eff, NA),
+         ypoints = ifelse(actual_eff == rm_eff, value, NA))
+
+ggplot(P_plot, aes(x = rm_eff, y = value/10000, col = STP)) +
+  geom_line() +
+  geom_point(aes(x = xpoints, y = ypoints/10000)) +
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+panel.background = element_blank(), axis.line = element_line(colour = "black")) +
+  xlab("Phosphorus removal efficiency") +
+  ylab("Phosphorus (hundreds of thousands)")
+```
+

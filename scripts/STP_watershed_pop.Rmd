@@ -1,0 +1,155 @@
+---
+title: "Fiji_STP_watersheds"
+author: "Caitie"
+date: "09/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(sf)
+#library(startR)
+library(here)
+library(raster)
+library(gdalUtils)
+library(tabularaster)
+library(units)
+library(rgdal)
+library(lwgeom)
+```
+
+# Fiji
+
+Source - 
+
+```{r}
+fiji_tik<-st_read(here("raw_data/Tikina/fji_polbnda_adm3_tikina.shp")) %>% 
+  rename(TIKINA = ADM3_NAME,
+         PROVINCE = ADM2_NAME,
+         TID = FBOS_TID,
+         PID = FBOS_PID) %>% 
+  summarise()
+
+fiji_proj<-st_transform(fiji_tik, "+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72
++towgs84=35.1728,-136.5713,36.9643,-1.371019,0.841969,4.718006,1.5370023600525 +units=m +no_defs ")
+
+fiji_proj<-st_zm(fiji_proj)
+
+st_write(fiji_proj, here("projected_data/Tikina/fji_proj.shp"), overwrite = T)
+```
+
+# Population density
+
+Source: 
+https://data.humdata.org/dataset/fiji-high-resolution-population-density-maps-demographic-estimates
+
+30 m (people/30m2) spatial resolution: https://blogs.worldbank.org/opendata/first-look-facebook-s-high-resolution-population-maps
+
+This takes quite a long time - once created load in projected raster only
+
+```{r}
+#pop_ras<-raster(here("raw_data/Population/population_fji_2018-10-01.tif"))
+
+#pop_ras_proj<-projectRaster(pop_ras, crs = "+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72+towgs84=35.1728,-136.5713,36.9643,-1.371019,0.841969,4.718006,1.5370023600525 +units=m +no_defs")
+
+#writeRaster(pop_ras_proj, here("projected_data/Population/population_fji_proj.tif"), overwrite = T)
+```
+
+```{r}
+pop_ras_proj<-raster(here("projected_data/Population/population_fji_proj.tif"))
+```
+
+
+# STP Watershed boundaries
+
+Source - Water Authority Fiji
+
+```{r}
+stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
+                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(STP) %>% 
+  summarise(area = sum(area, na.rm = T)) %>% 
+  filter(!is.na(STP) == T) 
+  
+stp<-stp %>% 
+  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
+         ID = 1:nrow(stp))
+```
+# Summarise population within each STP watershed
+
+```{r}
+fiji_pop_df<-extract(pop_ras_proj, fiji_proj, fun = sum, na.rm = T)
+
+# Population is 1175078
+```
+# Prop of population connected
+
+```{r}
+conn_pop<-sum(stp$stp_pop)
+
+prop_pop<-conn_pop/fiji_pop_df
+
+conn_pop
+fiji_pop_df
+prop_pop
+
+#~16% of population is connected based on these estimates with Felipe's population density layer
+#~19.3% of population is connected based on the Facebook population density layer
+```
+
+
+# Crop STP from population data
+
+```{r}
+stp_pop<-crop(pop_ras_proj, stp, snap = "near")
+```
+
+# Rasterize STP shapefile
+
+This takes a long time - avoid if possible
+
+```{r}
+#stp_ras<-rasterize(stp, pop_ras_proj, field = "ID")
+#writeRaster(stp_ras, here("output_data/Sewage_plants/stp_raster.tif"), overwrite = T)
+```
+
+# Compare our results to reported results
+
+Source - Table 1 from Fiji national liquid waste management strategy and action plan 2007
+
+```{r}
+reported_conn<-read.csv(here("raw_data/Sewage_plants/STP_pop_connected.csv")) %>% 
+  mutate(ID = ifelse(STP_name == "Adi_Cakobau School", 1,
+                     ifelse(STP_name == "Pacific_Harbour", 2,
+                            ifelse(STP_name == "Suva_Kinoya", 3,
+                                   ifelse(STP_name == "Naboro Prison", 4,
+                                          ifelse(STP_name == "Nausori", 5,
+                                                 ifelse(STP_name ==  "Labasa", 6,
+                                                        ifelse(STP_name == "Lautoka", 7,
+                                                               ifelse(STP_name ==  "Nadi", 8,
+                                                                      ifelse(STP_name == "Sigatoka", 9,
+                                                                             ifelse(STP_name == "Ba", 10,
+                                                                                    ifelse(STP_name == "Wailada", 11, NA))))))))))))
+```
+
+Join to estimates
+
+```{r}
+pop_check<- stp %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  full_join(., reported_conn, by = "ID") %>% 
+  dplyr::select(STP, STP_name, stp_pop, Pop_connected) %>% 
+  rename(estimated = stp_pop,
+         reported = Pop_connected)
+
+write.csv(here("output_data/Sewage_plants/STP_population_check.csv"))
+```
+

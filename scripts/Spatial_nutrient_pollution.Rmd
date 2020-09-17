@@ -1,0 +1,194 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "16/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+#library(startR)
+library(here)
+library(raster)
+library(gdalUtils)
+library(tabularaster)
+library(units)
+library(rgdal)
+library(lwgeom)
+```
+
+# Population raster
+
+```{r}
+pop_ras_proj<-raster(here("projected_data/Population/population_fji_proj.tif"))
+```
+
+# Calculate N and P from human population
+
+N emission (kg/person/year) are estimated based on dietary per capita protein consumption from FAO
+
+```{r}
+Protein_intake<- 73.6 #FAO protein supply g/capita/day 
+plant_protein_intake<-42.23 # FAO 2013 Protein Supply Vegetable products g/capita/day
+```
+
+The human N emissions (kg/person/year) are thus
+
+```{r}
+N_excretion_human<- Protein_intake*0.13
+
+#g/person/day assuming 13% nitrogen content of protein- This estimate is slightly lower than using the GDP_ppp estimate. Value from Wang et al. 2019 and Jönsson H., Richert Stintzing A., Vinnerås B. & Salomon E. Guidelines on use of urine and faeces in crop production (Stockholm Environment Institute, SE-103 14 Stockholm, Sweden, 2004).
+
+N_emissions_human<- 0.365*N_excretion_human #kg/person/year
+```
+
+```{r}
+P_excretion_human<- 0.011 * (Protein_intake + plant_protein_intake) 
+
+# units are total protein in urine and feces g/person/day - Equation from Mihelic et al. 2011 https://reader.elsevier.com/reader/sd/pii/S0045653511001925?token=37B898436A78191398F270991D46AED05EF0C364F3BF68D80B1FFC4C1C334575343378A0F7DAD55F258716F0EDDB1D42
+
+P_emissions_human<-0.365*P_excretion_human #kg/person/year
+```
+
+# N and P emissions per grid cell
+
+```{r}
+N_cell<-pop_ras_proj * N_emissions_human #kg/year/cell
+P_cell<-pop_ras_proj * P_emissions_human #kg/year/cell
+```
+
+```{r}
+writeRaster(N_cell, here("output_data/Nutrients/Fiji_N_per_cell.tif"))
+writeRaster(P_cell, here("output_data/Nutrients/Fiji_P_per_cell.tif"))
+```
+
+
+If there was no sewage treatment - we estimate the N and P emissions are thus
+
+```{r}
+N_notreatment<-cellStats(N_cell, sum)
+P_notreatment<-cellStats(P_cell, sum)
+```
+
+
+# Wastewater treatment
+
+But there is wastewater treatment
+
+Sewage treatment plant catchment shapefile
+
+```{r}
+stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
+                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(STP) %>% 
+  summarise(area = sum(area, na.rm = T)) %>% 
+  filter(!is.na(STP) == T) 
+
+  
+stp<-stp %>% 
+  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
+         ID = 1:nrow(stp))
+```
+
+
+Sewage treatment plant catchment raster
+
+```{r}
+stp_ras<-raster(here("output_data/Sewage_plants/stp_raster.tif"))
+```
+
+Sewage treatment plant nutrient removal rates
+
+```{r}
+nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+  mutate(ID = ifelse(STP == "ACS", 1,
+                     ifelse(STP == "Deuba", 2,
+                            ifelse(STP == "Kinoya", 3,
+                                   ifelse(STP == "Naboro", 4,
+                                          ifelse(STP == "Nadali", 5,
+                                                 ifelse(STP ==  "Namara", 6,
+                                                        ifelse(STP == "Lautoka", 7,
+                                                               ifelse(STP ==  "Navakai", 8,
+                                                                      ifelse(STP == "Olosara", 9,
+                                                                             ifelse(STP == "Ba", 10,
+                                                                                    ifelse(STP == "Wailada", 11, NA))))))))))))
+
+N_removal<-nutri_removal %>% 
+  filter(type == "N")
+
+P_removal<-nutri_removal %>% 
+  filter(type == "P")
+```
+
+Make sewage treatment into a raster
+
+This takes awhile - avoid if possible
+
+```{r}
+#N_stp_removal<-subs(stp_ras, N_removal, by= "ID", which="rm_eff")
+#P_stp_removal<-subs(stp_ras, P_removal, by= "ID", which="rm_eff")
+```
+
+```{r}
+#writeRaster(N_stp_removal, here("output_data/Sewage_plants/N_stp_removal.tif"))
+#writeRaster(P_stp_removal, here("output_data/Sewage_plants/P_stp_removal.tif"))
+```
+
+```{r}
+N_stp_removal<-raster(here("output_data/Sewage_plants/N_stp_removal.tif"))
+P_stp_removal<-raster(here("output_data/Sewage_plants/P_stp_removal.tif"))
+```
+
+
+Account for treatment
+
+```{r}
+test<-N_stp_removal
+test[is.na(test) == T]<-1
+
+N_rm_stp<-N_cell * N_stp_removal
+
+P_rm_stp<-P_cell * P_stp_removal
+
+N_rm_all<- N_cell * test
+  
+P_rm_all<- P_cell * test
+```
+
+```{r}
+writeRaster(N_rm_stp, here("output_data/Sewage_plants/N_total_stp_rm.tif"), overwrite = T)
+writeRaster(P_rm_stp, here("output_data/Sewage_plants/P_total_stp_rm.tif"), overwrite = T)
+writeRaster(N_rm_all, here("output_data/Sewage_plants/N_total_stp_rm_all.tif"), overwrite = T)
+writeRaster(P_rm_all, here("output_data/Sewage_plants/P_total_stp_rm_all.tif"), overwrite = T)
+```
+
+
+# Nutrients at each STP
+
+```{r}
+stp<- stp %>% 
+  mutate(N = extract(N_rm_stp, stp, fun = sum, na.rm = T),
+         P = extract(P_rm_stp, stp, fun = sum, na.rm = T))
+```
+Current nutrients based on removal efficiency
+```{r}
+sum(stp$N) * 0.001 #Tonnes/year
+sum(stp$P) * 0.001 #Tonnes/year
+```
+
+Nutrients if no treatment occured
+```{r}
+stp<- stp %>% 
+  mutate(N_notreatment = extract(N_cell, stp, fun = sum, na.rm = T),
+         P_notreatment = extract(P_cell, stp, fun = sum, na.rm = T))
+
+st_write(stp, "output_data/Sewage_plants/Nutrients_at_STP.shp")
+```
+
