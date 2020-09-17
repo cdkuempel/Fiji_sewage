@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Fiji Wastewater Treatment plants</name>
+    <description>Location of wastewater treatment plants and outfalls in Fiji</description>
+    <Style id="icon-1899-0288D1-nodesc-normal">
+      <IconStyle>
+        <color>ffd18802</color>
+        <scale>1</scale>
+        <Icon>
+          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>
+        </Icon>
+        <hotSpot x="32" xunits="pixels" y="64" yunits="insetPixels"/>
+      </IconStyle>
+      <LabelStyle>
+        <scale>0</scale>
+      </LabelStyle>
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3>]]></text>
+      </BalloonStyle>
+    </Style>
+    <Style id="icon-1899-0288D1-nodesc-highlight">
+      <IconStyle>
+        <color>ffd18802</color>
+        <scale>1</scale>
+        <Icon>
+          <href>https://www.gstatic.com/mapspro/images/stock/503-wht-blank_maps.png</href>
+        </Icon>
+        <hotSpot x="32" xunits="pixels" y="64" yunits="insetPixels"/>
+      </IconStyle>
+      <LabelStyle>
+        <scale>1</scale>
+      </LabelStyle>
+      <BalloonStyle>
+        <text><![CDATA[<h3>$[name]</h3>]]></text>
+      </BalloonStyle>
+    </Style>
+    <StyleMap id="icon-1899-0288D1-nodesc">
+      <Pair>
+        <key>normal</key>
+        <styleUrl>#icon-1899-0288D1-nodesc-normal</styleUrl>
+      </Pair>
+      <Pair>
+        <key>highlight</key>
+        <styleUrl>#icon-1899-0288D1-nodesc-highlight</styleUrl>
+      </Pair>
+    </StyleMap>
+    <Folder>
+      <name>Untitled layer</name>
+      <Placemark>
+        <name>PWD Sewage Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.482213,-18.1097364,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>PWD (Kinoya) Sewage Outfall</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.4900599,-18.1199225,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pacific Harbor Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.069465,-18.2421191,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Pacific Harbor Sewage Outfall</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.0678906,-18.2575379,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Lautoka Natabua Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            177.4236057,-17.6335327,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Lautoka Natabua Sewage Outfall</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            177.4056456,-17.6200049,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Labasa Namara Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            179.3638,-16.4138036,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Votua Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            177.6866201,-17.4907843,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Olosara Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            177.5184107,-18.1686021,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Nausori Nadali Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.5498529,-18.041893,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>What is this?</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.5096382,-17.9758141,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Naboro Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.2988539,-18.1360209,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>ACS Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.4701701,-18.0217188,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Wailada Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            178.4103245,-18.1115044,0
+          </coordinates>
+        </Point>
+      </Placemark>
+      <Placemark>
+        <name>Navakai Sewage Treatment Plant</name>
+        <styleUrl>#icon-1899-0288D1-nodesc</styleUrl>
+        <Point>
+          <coordinates>
+            177.4121491,-17.7940821,0
+          </coordinates>
+        </Point>
+      </Placemark>
+    </Folder>
+  </Document>
+</kml>
