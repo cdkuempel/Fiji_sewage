@@ -1,5 +1,5 @@
 # Fiji_sewage
-The following scripts quantify the sewage pollution from sewage in Fiji from connected and unconnected populations.
+The following scripts quantify the nutrient pollution (N and P) from human sewage in Fiji from connected and unconnected populations.
 
 To recreate the results run the following scripts in this order:
 
