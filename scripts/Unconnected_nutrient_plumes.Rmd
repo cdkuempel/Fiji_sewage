@@ -1,7 +1,7 @@
 ---
 title: "Untitled"
 author: "Caitie"
-date: "16/09/2020"
+date: "17/09/2020"
 output: html_document
 ---
 
@@ -22,47 +22,139 @@ library(reshape2)
 library(rgrass7)
 library(parallel)
 library(tmap)
-remotes::install_github("SEEG-Oxford/seegSDM")
+#remotes::install_github("SEEG-Oxford/seegSDM")
 library(seegSDM)
+library(tabularaster)
+library(units)
+library(lwgeom)
+```
+
+
+# Rivers
+
+```{r}
+rivers<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
+```
+
+
+# Basins
+
+```{r}
+# Read in data and calculate area
+#test<-st_read("/home/kuempel/Waste_water_data/Fiji/Basins/BasinATLAS_v10_shp/BasinATLAS_v10_lev12.shp")
+#basins12<-st_read("/home/kuempel/Waste_water_data/Fiji/Basins/BasinATLAS_v10_shp/BasinATLAS_v10_lev12.shp")
+basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
+
+basins12_proj<-st_transform(basins12, st_crs(rivers))
+
+rivers_proj<-st_transform(rivers, st_crs(basins12))
+#basins_crop<-st_crop(basins12_proj, extent(rivers))
+#test<- basins12_proj %>% 
+#  filter(MAIN_BAS %IN%)
+
+#test<-st_make_valid(basins12_proj)
+
+
+#fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) 
+
+#fiji_basins_df<-fiji_basins12 %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(HYBAS_ID, NEXT_DOWN,area_km2, -ID)
 
 ```
 
-# Nutrients at each pourpoint
+# Pourpoints
+Method from here: https://stackoverflow.com/questions/55106950/r-sf-intersect-lines-with-the-borders-of-multipolygons-extract-coordinates-of
+
+Here is the new method I should use: https://gis.stackexchange.com/questions/251101/return-end-vertices-of-an-sf-linestring
 
 ```{r}
-stp_crs<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp"))
+# Read in data
+sub_fiji_rivers<- rivers_proj %>% 
+  filter(NEXT_DOWN == 0) %>% 
+  st_cast(., "LINESTRING")
 
-stp<-stp_crs %>% 
+
+#If you only want the endpoints, then st_line_sample is what you are looking for:
+
+pnts<-st_endpoint(sub_fiji_rivers) 
+
+pnts_xy<-st_coordinates(pnts) 
+
+data_per_river<-st_join(sub_fiji_rivers,basins12)
+data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
+
+data_per_river<-st_transform(data_per_river, st_crs(rivers)) %>% 
+  rename(riv_dis = dis_m3_pyr.x,
+         bas_dis = dis_m3_pyr.y)
+
+pnts<-st_transform(pnts, st_crs(rivers))
+
+pb <- txtProgressBar(min = 0, max = nrow(data_per_river), style = 3) 
+pour_points<-list()
+for (i in 1:nrow(data_per_river)){
+  setTxtProgressBar(pb, i)
+  points_line<- st_cast(data_per_river[i,], "POINT")
+  pour_points[[i]]<- points_line[nrow(points_line),]
+  data_per_river[i,"pp_x"]<-extent(pour_points[[i]])[1]
+  data_per_river[i,"pp_y"]<-extent(pour_points[[i]])[3]
+  
+}
+
+```
+
+
+
+# Nutrients per basin
+
+```{r}
+basins_nutri<-read.csv(here("output_data/Nutrients/N_P_unconnected_per_basin.csv")) %>% 
+  dplyr::select(-X)
+```
+
+# Distribute
+
+We distributed the sediment export across all points weighted by the mean annual discharge of each river
+
+```{r}
+basins_nutri_all<-left_join(data_per_river, basins_nutri, by = c("MAIN_BAS")) %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry)
+  dplyr::select(-geometry, MAIN_BAS, riv_dis) 
+
+basins_nutri_dist<-basins_nutri_all %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(Total_discharge = sum(riv_dis)) %>% 
+  left_join(., basins_nutri_all, by = "MAIN_BAS") %>% 
+  mutate(prop_dis = riv_dis/Total_discharge,
+         N_pourpoint = prop_dis * N,
+         P_pourpoint = prop_dis * P)
+
+write_csv(basins_nutri_dist, here("output_data/Nutrients/Fiji_unconnected_nutrients_at_pourpoints.csv"))
+  
 ```
 
-# Location of pourpoints
+# Nutrient export at each pourpoint
 
 ```{r}
-stp_pp<-st_read("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/All_STP_outfalls_Fiji.shp") %>% 
-    mutate(ID = ifelse(Name == "Pacific Harbor Sewage Outfall", 2,
-                            ifelse(Name == "PWD (Kinoya) Sewage Outfall" , 3,
-                                 #  ifelse(Name == "Naboro", 4,
-                                   #       ifelse(Name == "Nadali", 5,
-                                                 ifelse(Name ==  "Labasa Outfall", 6,
-                                                        ifelse(Name == "Lautoka Natabua Sewage Outfall", 7,
-                                                               ifelse(Name ==  "Nadi outfall" , 8,
-                                                                      ifelse(Name == "Sigatoka Outfall", 9,
-                                                                             ifelse(Name == "Ba outfall", 10, NA))))))))
+pour_points<-basins_nutri_dist
+coordinates(pour_points) <- ~pp_x+pp_y
+pour_points<-st_as_sf(pour_points)
+pour_points<-pour_points %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N, P, N_pourpoint, P_pourpoint)
 
-stp_pp_proj<-st_transform(stp_pp, st_crs(stp_crs)) 
+st_crs(pour_points)<-"+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72 +units=m +no_defs "
 
-# Need to look into outfalls again
+st_write(pour_points, here("output_data/Rivers/Fiji_unconnected_pourpoints.shp"), delete_layer = T)
 ```
 
-Join pourpoints to nutrients
 
+
+# Combine with spatil info
 ```{r}
-pour_points<-full_join(stp_pp_proj, stp, by = "ID") %>% 
-  dplyr::select(Name, STP, ID, N, P)
+#pour_points<-left_join(basins_pts, basins_nutri_dist, by = c("HYRIV_ID", "HYBAS_ID","X", "Y", "riv_dis_m3_pyr")) %>% 
+#  dplyr::select("X", "Y") %>% 
+#  st_intersection(pnts,.)
 ```
-
 
 # Diffusion model
 
@@ -77,7 +169,7 @@ sed_flow_N<-function(pp_sf,#list of pour points
                    
 ){
   #set initial sediment value
-  initial.value<-pp_sf@data$N
+  initial.value<-pp_sf@data$N_pourpoint
   #create buffer around point and clip ocean raster
   point<-st_as_sf(pp_sf,coords=c("longitude.y","latitude.y"))#first need to convert to sf object
   point_buff<-st_buffer(point, buffer_value)#
@@ -140,7 +232,7 @@ sed_flow_N<-function(pp_sf,#list of pour points
   #calculate distance frequencies
   
   
-  initial.value<-pp_sf@data$N
+  initial.value<-pp_sf@data$N_pourpoint
   
   values<-rasterToPoints(cost_layer)[,3]
   frequency_distances<-as.data.frame(table(round(values,1)))
@@ -179,7 +271,7 @@ sed_flow_P<-function(pp_sf,#list of pour points
                    
 ){
   #set initial sediment value
-  initial.value<-pp_sf@data$N
+  initial.value<-pp_sf@data$P_pourpoint
   #create buffer around point and clip ocean raster
   point<-st_as_sf(pp_sf,coords=c("longitude.y","latitude.y"))#first need to convert to sf object
   point_buff<-st_buffer(point, buffer_value)#
@@ -242,7 +334,7 @@ sed_flow_P<-function(pp_sf,#list of pour points
   #calculate distance frequencies
   
   
-  initial.value<-pp_sf@data$N
+  initial.value<-pp_sf@data$P_pourpoint
   
   values<-rasterToPoints(cost_layer)[,3]
   frequency_distances<-as.data.frame(table(round(values,1)))
@@ -272,7 +364,7 @@ sed_flow_P<-function(pp_sf,#list of pour points
 }
 ```
 
-Apply function to points list
+Avoid reprojecting ocean if possible - takes awhile
 
 ```{r}
 #ocean_raster<-raster(here("raw_data/Global/oceans_moll.tif"))
@@ -286,23 +378,19 @@ ocean_raster<-raster(here("projected_data/oceans_moll_proj.tif"))
 
 
 ```{r}
-pour_points<-pour_points %>% 
-  filter(!is.na(ID) == T,
-         !STP == "Rewa Outfall",
-         !is.na(Name) == T) 
-
 p_extent=st_as_sfc(st_bbox(pour_points))
 p_extent_sub = st_make_grid(p_extent,n = c(40,20)) %>%
                st_as_sf() %>% 
                rename(geom=x) %>%
                mutate(group=1:nrow(.))
-tm_shape(p_extent_sub)+tm_polygons()
+tmap::tm_shape(p_extent_sub)+tmap::tm_polygons()
 pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>% 
               mutate(ID=1:nrow(.)) %>% 
   as_Spatial
 
   point_list<-split(pour_points,as.character(pour_points@data$ID))
   re = mclapply(point_list, sed_flow_N, ocean_raster, 80000, c(1110,894), 90000, mc.cores = 1)
+  #Check to see if we should change buffer value
   
   # Set extent for all outputs to the max extent needed, e.g., newextent
   newextent<-extent(Reduce(extend,re)) # Get max extent of all objects
@@ -316,17 +404,45 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   # Add all rasters in the group together + mask out land areas is desired
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
+  
+  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_unconnected_N_plumes.tif")))
 
-  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/sed_plume_group_", i,".tif")), overwrite = TRUE, options=c("compress=deflate","tiled=yes","num_threads=6")) 
+```
 
-  print(paste0("Group ", i," of ", length(unique(pour_points$group)), " groups is completed."))
-  rm(list = c('sed_plume_merge', 're', 're_ext', 'newextent', 'point_list'))
+```{r}
+pour_points<-basins_nutri_dist
+coordinates(pour_points) <- ~pp_x+pp_y
+pour_points<-st_as_sf(pour_points)
+pour_points<-pour_points %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N, P, N_pourpoint, P_pourpoint)
+st_crs(pour_points)<-"+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72 +units=m +no_defs "
+
+p_extent=st_as_sfc(st_bbox(pour_points))
+p_extent_sub = st_make_grid(p_extent,n = c(40,20)) %>%
+               st_as_sf() %>% 
+               rename(geom=x) %>%
+               mutate(group=1:nrow(.))
+tmap::tm_shape(p_extent_sub)+tmap::tm_polygons()
+pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>% 
+              mutate(ID=1:nrow(.)) %>% 
+  as_Spatial
+
+  point_list<-split(pour_points,as.character(pour_points@data$ID))
+  re = mclapply(point_list, sed_flow_P, ocean_raster, 80000, c(1110,894), 90000, mc.cores = 1)
+  
+  # Set extent for all outputs to the max extent needed, e.g., newextent
+  newextent<-extent(Reduce(extend,re)) # Get max extent of all objects
+  re_ext=mclapply(re, extend, newextent, mc.cores=1) # Use fewer cores as this gets more memory heavy
+  gc()
+  
+  # Reclass NAs to 0
+  re_ext = mclapply(re_ext, mc.cores = 1, function(x) reclassify(x, cbind(NA,0))) # Reclass NA to 0, in a more memory friendly way,apparently...
   gc()
 
   # Add all rasters in the group together + mask out land areas is desired
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
-
-  writeRaster(sed_plume_merge, here("output_data/Nutrients/Fiji_nutrient_plumes.tif"), overwrite = TRUE, options=c("compress=deflate","tiled=yes","num_threads=6"))
+  
+  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_unconnected_P_plumes.tif")))
 
 ```

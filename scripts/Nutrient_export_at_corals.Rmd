@@ -1,0 +1,146 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "23/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(rgdal)
+library(raster)
+library(gdistance)
+library(reshape2)
+library(sf)
+library(rgrass7)
+library(parallel)
+library(here)
+library(pbmcapply)
+```
+
+# Combine all nutrient sources together
+
+Connected
+
+```{r}
+conn_N<-raster(here("output_data/Nutrients/Fiji_connected_N_plumes.tif"))
+conn_P<-raster(here("output_data/Nutrients/Fiji_connected_P_plumes.tif"))
+```
+
+Unconnected
+
+```{r}
+unconn_N<-raster(here("output_data/Nutrients/Fiji_unconnected_N_plumes.tif"))
+unconn_P<-raster(here("output_data/Nutrients/Fiji_unconnected_P_plumes.tif"))
+```
+
+Tourism
+
+```{r}
+#tourist_N<-raster(here("output_data/Nutrients/Fiji_tourist_N_plumes.tif"))
+#tourist_P<-raster(here("output_data/Nutrients/Fiji_tourist_P_plumes.tif"))
+```
+
+Stack
+
+Change extents so they line up
+```{r}
+unconn_N <- extend(unconn_N,conn_N)
+conn_N<-extend(conn_N, unconn_N)
+unconn_P <- extend(unconn_P,conn_N)
+conn_P<-extend(conn_P, unconn_N)
+```
+
+
+
+```{r}
+all<-stack(conn_N, conn_P, unconn_N, unconn_P)
+```
+
+
+# Calculate the amount of nutrients reaching coral reefs
+
+Coral reef layer
+
+```{r}
+#corals<-st_read(here("raw_data/Coral_reefs/Fiji_selected_corals.shp"))
+#corals<-st_read("/home/kuempel/Cumulative_threats_data/reefs/EEZ_Coral.shp")
+corals<-st_read("/home/kuempel/Cumulative_threats_data/reefs/WCMC008_CoralReef2018_Py_v4.shp")
+
+fji_corals<-corals %>% 
+  filter(PARENT_ISO == "FJI")
+fji_corals<-st_transform(fji_corals, crs(all))
+
+fji_corals<-fji_corals %>% 
+  mutate(ID = 1:nrow(fji_corals))
+
+corals_list<-split(fji_corals, fji_corals$ID)
+
+#corals_list<-corals_list[901:910]
+
+```
+
+
+```{r}
+coral_func<-function(x){ # Y is plume data, X is coral list
+  sub<-x[1]
+  if(is.null(intersect(extent(all), extent(sub)))){ #57 is FALSE
+          focus_corals<-x[1]
+          #focus_corals<-st_cast(st_as_sf(focus_corals),"POLYGON")
+          focus_corals$Fiji_connected_N_plumes<-0
+          focus_corals$Fiji_connected_P_plumes<-0
+          focus_corals$Fiji_unconnected_N_plumes<-0
+          focus_corals$Fiji_unconnected_P_plumes<-0
+    }else{
+      focus_corals<-x[1]
+      #focus_corals<-st_cast(st_as_sf(focus_corals),"POLYGON")
+      #focus_corals$ID<-1:nrow(focus_corals)
+    #  done<-c()
+   # for(i in 1:nrow(focus_corals)){
+    #    sub_coral<-focus_corals[i,]
+        if(is.null(intersect(extent(all), extent(focus_corals)))){
+          focus_corals$Fiji_connected_N_plumes<-0
+          focus_corals$Fiji_connected_P_plumes<-0
+          focus_corals$Fiji_unconnected_N_plumes<-0
+          focus_corals$Fiji_unconnected_P_plumes<-0
+          }else{
+          raster.polygon<-crop(all,extent(focus_corals),snap = "near")
+          nutrients<-cellStats(raster.polygon,"mean") %>% 
+            as.data.frame() %>% 
+            tibble::rownames_to_column(., "Type") %>% 
+            rename(Value = ".") %>% 
+            pivot_wider(., names_from = Type, values_from = Value)
+          
+          focus_corals<-cbind(focus_corals, nutrients)
+        }
+        
+        #done<-rbind(done, focus_corals)
+        #focus_corals<-done
+    }
+  focus_corals
+}
+  
+```
+
+```{r}
+nutri_corals<-pbmclapply(corals_list, coral_func, mc.cores = 20, mc.style = "ETA")
+
+corals_processed<-do.call(rbind,nutri_corals[1:length(nutri_corals)])
+
+corals_processed<-corals_processed %>% 
+  mutate(Total_N =Fiji_connected_N_plumes+Fiji_unconnected_N_plumes,
+         Total_P =Fiji_connected_P_plumes+Fiji_unconnected_P_plumes,
+         Total_nutrients = Total_N + Total_P)
+```
+
+```{r}
+st_write(corals_processed, here("output_data/Nutrients/Fiji_corals_nutrient_export.shp"), append = F)
+ 
+```
+
+
