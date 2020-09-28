@@ -1,0 +1,287 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "25/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(raster)
+library(gdalUtils)
+library(tabularaster)
+library(rgdal)
+library(countrycode)
+```
+
+In this code we estimate the contribution of tourists to sewage pollution in Fiji.
+
+# Visitor Arrivals by country 2018
+
+Data is from Fiji's Bureau of Statistics: https://www.statsfiji.gov.fj/index.php/statistics/tourism-and-migration-statistics/visitor-arrivals-statistics
+
+Potentially use a different year?
+
+```{r}
+visit_arrivals<-read_csv(here("raw_data/Tourism/Fiji_Visitor_Arrivals_by_Country.csv")) %>% 
+  dplyr::select(-X5, -X6, -X7, -X8, -X9, -X10, -X11) %>% 
+  filter(!Country == "Total") %>% 
+  group_by(Country) %>% 
+  summarise(Total_vistors = sum(Visitor_arrivals, na.rm = T)) %>% 
+  mutate(Country = ifelse(Country == "Korea", "South Korea", as.character(Country)))
+
+```
+
+# Visitors from each country by region
+
+```{r}
+visitors_region<-read_csv(here("raw_data/Tourism/Fiji_tourists_by_region.csv"))
+
+prop_visitors_region<- visitors_region %>% 
+  group_by(Country) %>% 
+  summarise(Total_visitors = sum(Num_visitors, na.rm = T)) %>% 
+  left_join(., visitors_region, by = "Country") %>% 
+  mutate(prop_visitors = Num_visitors/Total_visitors)
+```
+
+# Rooms and beds occupied in each region
+
+Data source: https://fhta.com.fj/wp-content/uploads/2019/01/Qtr.-3-2018.pdf
+
+```{r}
+beds_sold<-read_csv(here("raw_data/Tourism/Fiji_room_bed_sold_by_region.csv")) %>% 
+  group_by(Area) %>% 
+  summarise(Total_beds_sold = sum(Beds_sold, na.rm = T),
+            Total_rooms_sold = sum(Rooms_sold, na.rm = T)) %>% 
+  mutate(Prop_beds_sold = Total_beds_sold/sum(Total_beds_sold, na.rm = T),
+         Prop_rooms_sold= Total_rooms_sold/sum(Total_rooms_sold, na.rm = T))
+```
+
+# Protein supply by country
+
+```{r}
+protein_supply<-read_csv(here("raw_data/Protein_supply/protein-supply-by-region.csv")) %>% 
+  filter(Year == 2013) %>% 
+  rename(Protein_g_capita_day = `Food Balance Sheets: Grand Total - Protein supply quantity (g/capita/day) (FAO (2017)) (g/capita/day)`)
+```
+
+```{r}
+plant_protein_supply<-read_csv(here("raw_data/Protein_supply/FAOSTAT_vegetable_protein_consumption.csv")) %>% 
+  filter(Year == 2013,
+         Item == "Vegetal Products") %>% 
+  dplyr::select(Country, Year, Item, Value) %>% #unit is g/capita/day
+  mutate(Code = countrycode(Country, "country.name", "iso3c")) %>%
+  rename(plant_protein = Value)
+```
+
+```{r}
+protein_supply<-full_join(protein_supply, plant_protein_supply, by = c("Code", "Year"))
+```
+
+# Join Visitors and protein supply
+
+Visitor data has groups of countries-for this we take the mean protein for the group of countries
+
+```{r}
+# Countries by continent
+
+continent<-read_csv(here("raw_data/Tourism/Countries_by_continent.csv"))
+
+# Taiwan included in rest of Asia
+
+# Countries in "Rest_of_Asia" = 
+# Countries in "Continental Europe" = 
+# Countries in "Pacific Islands" =
+# Countries in "Others" = 
+
+#> unique(visit_arrivals$Country)
+# [1] "Australia"       "Canada"          "China"           "Europe"          "Hong Kong"       "India"           "Japan"           "South Korea"    
+# [9] "New Zealand"     "Others"          "Pacific_Islands" "Rest_of_Asia"    "United Kingdom"  "United States"  
+
+rest_of_asia<-continent %>% 
+  filter(Continent == "Asia",
+         !ISO3 %in% c("CHN", "HKG", "IND", "JPN", "KOR"))
+
+cont_europe<-continent %>% 
+  filter(Continent == "Europe",
+         !ISO3 %in% c("ALA", "ISL", "IRL", "GGY", "IMN", "MLT", "GBR", "FRO", "SJM", "HRV", "GIB", "JEY"),
+         !is.na(ISO3) == T)
+  
+pi<-continent %>% 
+  filter(Continent == "Oceania",
+         !ISO3 %in% c("NZL", "AUS", "FJI"),
+         !Region1 == "Australia and New Zealand")
+
+  
+# For now we do not include Others with accounts for 4974 or 0.5% of visitors
+```
+
+
+```{r}
+rest_of_asia_protein<-left_join(rest_of_asia, protein_supply, by = c("ISO3" = "Code")) %>% 
+  summarise(Protein_g_capita_day = mean(Protein_g_capita_day, na.rm = T),
+            Plant_protein = mean(plant_protein, na.rm = T))
+
+cont_europe_protein<-left_join(cont_europe, protein_supply, by = c("ISO3" = "Code")) %>% 
+  summarise(Protein_g_capita_day = mean(Protein_g_capita_day, na.rm = T),
+            Plant_protein = mean(plant_protein, na.rm = T))
+
+pi_protein<-left_join(pi, protein_supply, by = c("ISO3" = "Code")) %>% 
+  summarise(Protein_g_capita_day = mean(Protein_g_capita_day, na.rm = T),
+            Plant_protein = mean(plant_protein, na.rm = T))
+
+
+```
+
+
+# Calculate Nutrients from visitors
+
+```{r}
+avg_stay = 11.4 #days - reference is from https://pic.or.jp/ja/wp-content/uploads/2019/07/2018-Annual-Visitor-Arrivals-ReportF.pdf
+
+
+visitor_nutrients<-visit_arrivals %>% 
+  filter(!Country == "Others") %>% 
+  left_join(., protein_supply, by = c("Country" = "Entity")) %>% 
+  mutate(Protein_g_capita_day = as.numeric(Protein_g_capita_day),
+         Protein_g_capita_day = ifelse(Country == "Rest_of_Asia", as.numeric(round(rest_of_asia_protein$Protein_g_capita_day,2)),
+                                       ifelse(Country == "Europe", as.numeric(round(cont_europe_protein$Protein_g_capita_day,2)),
+                                              ifelse(Country == "Pacific_Islands", as.numeric(round(pi_protein$Protein_g_capita_day,2)),
+                                                     ifelse(Country == "Hong Kong", 129.18, as.numeric(Protein_g_capita_day))))),
+         Plant_protein = as.numeric(plant_protein),
+         Plant_protein= ifelse(Country == "Rest_of_Asia", as.numeric(round(rest_of_asia_protein$Plant_protein,2)),
+                                       ifelse(Country == "Europe", as.numeric(round(cont_europe_protein$Plant_protein,2)),
+                                              ifelse(Country == "Pacific_Islands", as.numeric(round(pi_protein$Plant_protein,2)),
+                                                     ifelse(Country == "Hong Kong", 34.77, as.numeric(Plant_protein))))),
+         Protein_N_intake = Protein_g_capita_day * 0.13,
+         #Protein_P_intake = Protein_g_capita_day *(1/6),
+         #N_excretion_human = Protein_N_intake * (0.8+0.17),
+         P_excretion_human = 0.011 * (Protein_g_capita_day + Plant_protein), 
+         N_emissions_human = Protein_N_intake * avg_stay/1000, #kg/person/year
+         P_emissions_human = P_excretion_human* avg_stay/1000,#kg/person/year
+         N_emissions_visitors = N_emissions_human * Total_vistors, #kg/country tourists total/year
+         P_emissions_visitors = P_emissions_human * Total_vistors) 
+
+```
+
+
+# Join to visitor by region data
+
+```{r}
+visitor_nutrients_region<-visitor_nutrients %>% 
+  mutate(Country2 = ifelse(Country == "Europe", "Cont. Europe",
+                           ifelse(Country == "United States", "USA",
+                           ifelse(Country %in% c("Hong Kong", "India", "Japan", "South Korea", "Rest_of_Asia", "Pacific_Islands", "United Kingdom", "China"), "Others", as.character(Country))))) %>% 
+  left_join(., prop_visitors_region, by = c("Country2" = "Country")) %>% 
+  mutate(N_visitors_region = N_emissions_visitors * prop_visitors,
+         P_visitors_region = P_emissions_visitors * prop_visitors)
+```
+
+# Surface water transport
+
+Determine what watersheds each STP is in
+
+```{r}
+stp_shp<-readOGR("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml") %>% 
+  st_as_sf()
+
+stp_shp<-st_transform(stp_shp, "+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72 +towgs84=35.1728,-136.5713,36.9643,-1.371019,0.841969,4.718006,1.53700236005 +units=m +no_defs ")
+
+basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp"))
+
+```
+
+
+
+# Spatial distribute connections
+
+We assume that resorts in Mamanuca are not connected to municipal STP (islands) so we do not include them.
+Northern Division = Labasa STP
+Suva = Kinoya STP
+Nadi = Navakai Nadi STP
+Lautoka = Natabua Lautoka STP
+Coral Coast = Olosara Sigatoka and Pacific Harbor STP (stretch of coastline between Sigatoka and Suva, on the island of Viti Levu, in Fiji.)
+Others = Votua Ba STP and Nadali Nausori???
+
+```{r}
+stp<-read_csv("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji_Sewer_Treatment_Plants.csv") %>% 
+  filter(!Plant_Name %in% c("ACS", "Wailada", "Naboro"))%>% 
+  mutate(Tikina = ifelse(Plant_Name == "Olosara", "Nasigatoka",
+                         ifelse(Plant_Name == "Natabua", "Vuda", 
+                                ifelse(Tikina == "Nausori", "Naitasiri", 
+                                       ifelse(Tikina == "Nasinu", "Naitasiri", 
+                                              ifelse(Tikina == "Pacific Harbor", "Serua", as.character(Tikina)))))),
+         Area = ifelse(Tikina == "Vuda", "Lautoka",
+                       ifelse(Tikina %in% c("Nasigatoka", "Serua"), "Coral Coast",
+                              ifelse(Tikina == "Labasa", "Northern Division",
+                                     ifelse(Tikina %in% c("Ba", "Naitasiri"), "Others", as.character(Tikina))))))
+
+```
+
+From IAS 2004 it is estimated that 26.7% of surveyed resorts were connected to municipal STP. We use that figure here.
+
+```{r}
+prop_con = 0.267
+
+visitor_nutrients_stp<-visitor_nutrients_region %>% 
+  filter(!Area == "Mamanuca") %>% 
+  mutate(N_visitors_connected = N_visitors_region * prop_con,
+         P_visitors_connected = P_visitors_region * prop_con) %>% 
+  dplyr::select(Country, Area, Total_visitors, N_visitors_connected, P_visitors_connected) %>% 
+  left_join(., stp, by = "Area") %>% 
+  mutate(Prop_non_res2= ifelse(Tikina == "Ba" & Area == "Others", 1,
+                               ifelse(is.na(Prop_non_res) == T & Area == "Others",1 - 0.08695652,
+                                      ifelse(Area == "Coral Coast", 0.5,
+                                             ifelse(Area %in% c("Nadi", "Lautoka", "Northern Division"),1,as.numeric(Prop_non_res))))),
+         Total_N_stp = N_visitors_connected * Prop_non_res2,
+         Total_P_stp = P_visitors_connected * Prop_non_res2) %>% 
+  group_by(Plant_Name) %>% 
+  summarise(Total_N = sum(Total_N_stp, na.rm = T),
+            Total_P = sum(Total_P_stp, na.rm = T))
+
+
+```
+
+```{r}
+write.csv(visitor_nutrients_stp, here("output_data/Sewage_plants/Connected_tourist_nutrients.csv"))
+```
+
+
+
+
+# Determine connections????
+
+https://www.tourismfiji.com/fiji-map-resorts.html
+
+There were a total of 870,309 visitors to Fiji in 2018 from this data. This is nearly the same as the reported population of Fiji (reported as 883,483 in 2017).
+
+Fiji liquid wastewater management strategy:
+
+~15 large (>100 rooms) and 25 medium sized resorts (30-100 rooms)
+Smaller resorts/backpacker accomodations usually have septic tanks (~65 such facilities)
+
+Greenpeace 1997:
+66% of resorts carry out primary treatment of effluent
+7% had secondary treatment
+
+IAS 2004
+40% of resorts have on-site sewage treatment plants
+40% had septic tanks
+20% connected to sewer system
+
+
+50% of resorts had primary treatment
+23% secondary treatment
+
+50% test effluent quality
+
+26.7% of resorts connected?
+
+
+
