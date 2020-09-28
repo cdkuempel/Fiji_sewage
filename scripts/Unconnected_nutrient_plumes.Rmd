@@ -41,26 +41,11 @@ rivers<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
 
 ```{r}
 # Read in data and calculate area
-#test<-st_read("/home/kuempel/Waste_water_data/Fiji/Basins/BasinATLAS_v10_shp/BasinATLAS_v10_lev12.shp")
-#basins12<-st_read("/home/kuempel/Waste_water_data/Fiji/Basins/BasinATLAS_v10_shp/BasinATLAS_v10_lev12.shp")
 basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
 
 basins12_proj<-st_transform(basins12, st_crs(rivers))
 
 rivers_proj<-st_transform(rivers, st_crs(basins12))
-#basins_crop<-st_crop(basins12_proj, extent(rivers))
-#test<- basins12_proj %>% 
-#  filter(MAIN_BAS %IN%)
-
-#test<-st_make_valid(basins12_proj)
-
-
-#fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) 
-
-#fiji_basins_df<-fiji_basins12 %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(HYBAS_ID, NEXT_DOWN,area_km2, -ID)
-
 ```
 
 # Pourpoints
@@ -112,6 +97,7 @@ basins_nutri<-read.csv(here("output_data/Nutrients/N_P_unconnected_per_basin.csv
   dplyr::select(-X)
 ```
 
+
 # Distribute
 
 We distributed the sediment export across all points weighted by the mean annual discharge of each river
@@ -148,8 +134,8 @@ st_write(pour_points, here("output_data/Rivers/Fiji_unconnected_pourpoints.shp")
 ```
 
 
-
 # Combine with spatil info
+
 ```{r}
 #pour_points<-left_join(basins_pts, basins_nutri_dist, by = c("HYRIV_ID", "HYBAS_ID","X", "Y", "riv_dis_m3_pyr")) %>% 
 #  dplyr::select("X", "Y") %>% 
@@ -161,6 +147,13 @@ st_write(pour_points, here("output_data/Rivers/Fiji_unconnected_pourpoints.shp")
 Plume function
 
 ```{r}
+#point_list, sed_flow_N, ocean_raster, 80000, c(1110,894), 90000
+
+pp_sf<-point_list[[1]]
+buffer_value<-80000
+resolution_raster<-c(1110,894)
+searchdistance<-90000
+
 sed_flow_N<-function(pp_sf,#list of pour points
                    ocean_raster,
                    buffer_value,#buffer from pour point
