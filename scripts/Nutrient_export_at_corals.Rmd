@@ -42,8 +42,8 @@ unconn_P<-raster(here("output_data/Nutrients/Fiji_unconnected_P_plumes.tif"))
 Tourism
 
 ```{r}
-#tourist_N<-raster(here("output_data/Nutrients/Fiji_tourist_N_plumes.tif"))
-#tourist_P<-raster(here("output_data/Nutrients/Fiji_tourist_P_plumes.tif"))
+conn_tourist_N<-raster(here("output_data/Nutrients/Fiji_connected_tourism_N_plumes.tif"))
+conn_tourist_P<-raster(here("output_data/Nutrients/Fiji_connected_tourism_P_plumes.tif"))
 ```
 
 Stack
@@ -54,12 +54,14 @@ unconn_N <- extend(unconn_N,conn_N)
 conn_N<-extend(conn_N, unconn_N)
 unconn_P <- extend(unconn_P,conn_N)
 conn_P<-extend(conn_P, unconn_N)
+conn_tourist_N<-extend(conn_tourist_N, unconn_N)
+conn_tourist_P<-extend(conn_tourist_P, unconn_N)
 ```
 
 
 
 ```{r}
-all<-stack(conn_N, conn_P, unconn_N, unconn_P)
+all<-stack(conn_N, conn_P, unconn_N, unconn_P, conn_tourist_N, conn_tourist_P)
 ```
 
 
@@ -75,6 +77,8 @@ corals<-st_read("/home/kuempel/Cumulative_threats_data/reefs/WCMC008_CoralReef20
 fji_corals<-corals %>% 
   filter(PARENT_ISO == "FJI")
 fji_corals<-st_transform(fji_corals, crs(all))
+
+fji_corals<-st_cast(st_as_sf(fji_corals),"POLYGON")
 
 fji_corals<-fji_corals %>% 
   mutate(ID = 1:nrow(fji_corals))
@@ -96,6 +100,8 @@ coral_func<-function(x){ # Y is plume data, X is coral list
           focus_corals$Fiji_connected_P_plumes<-0
           focus_corals$Fiji_unconnected_N_plumes<-0
           focus_corals$Fiji_unconnected_P_plumes<-0
+          focus_corals$Fiji_connected_tourism_N_plumes<-0
+          focus_corals$Fiji_connected_tourism_P_plumes<-0
     }else{
       focus_corals<-x[1]
       #focus_corals<-st_cast(st_as_sf(focus_corals),"POLYGON")
@@ -108,6 +114,8 @@ coral_func<-function(x){ # Y is plume data, X is coral list
           focus_corals$Fiji_connected_P_plumes<-0
           focus_corals$Fiji_unconnected_N_plumes<-0
           focus_corals$Fiji_unconnected_P_plumes<-0
+          focus_corals$Fiji_connected_tourism_N_plumes<-0
+          focus_corals$Fiji_connected_tourism_P_plumes<-0
           }else{
           raster.polygon<-crop(all,extent(focus_corals),snap = "near")
           nutrients<-cellStats(raster.polygon,"mean") %>% 
@@ -133,8 +141,8 @@ nutri_corals<-pbmclapply(corals_list, coral_func, mc.cores = 20, mc.style = "ETA
 corals_processed<-do.call(rbind,nutri_corals[1:length(nutri_corals)])
 
 corals_processed<-corals_processed %>% 
-  mutate(Total_N =Fiji_connected_N_plumes+Fiji_unconnected_N_plumes,
-         Total_P =Fiji_connected_P_plumes+Fiji_unconnected_P_plumes,
+  mutate(Total_N =Fiji_connected_N_plumes+Fiji_unconnected_N_plumes+Fiji_connected_tourism_N_plumes,
+         Total_P =Fiji_connected_P_plumes+Fiji_unconnected_P_plumes+Fiji_connected_tourism_P_plumes,
          Total_nutrients = Total_N + Total_P)
 ```
 
