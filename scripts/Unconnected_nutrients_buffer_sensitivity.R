@@ -61,7 +61,7 @@ writeRaster(buffer_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Rivers/buf
 
 }
 
-mclapply(buff, create_buff, mc.cores = 5)
+pbmclapply(buff, create_buff, mc.cores = 5, mc.style = "ETA")
 
 
 rm(list=ls())
@@ -74,7 +74,7 @@ P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
 
 # Nutrients within watersheds
 
-#Wateshed boundaries
+#Watershed boundaries
 
 #Level 12 basins
 
@@ -112,7 +112,7 @@ buffer_N_P<-function(x){
   write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_unconnected_per_basin_",x,"_buff.csv"))
 }
 
-pbmclapply(buffer_list, buffer_N_P, mc.cores = 10, mc.style = "ETA")
+pbmclapply(buffer_list, buffer_N_P, mc.cores = 15, mc.style = "ETA")
 
 
 
