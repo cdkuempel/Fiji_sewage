@@ -143,12 +143,17 @@ corals_processed<-do.call(rbind,nutri_corals[1:length(nutri_corals)])
 corals_processed<-corals_processed %>% 
   mutate(Total_N =Fiji_connected_N_plumes+Fiji_unconnected_N_plumes+Fiji_connected_tourism_N_plumes,
          Total_P =Fiji_connected_P_plumes+Fiji_unconnected_P_plumes+Fiji_connected_tourism_P_plumes,
-         Total_nutrients = Total_N + Total_P)
+         Total_nutrients = Total_N + Total_P) %>% 
+  rename(conn_N = Fiji_connected_N_plumes,
+         conn_P = Fiji_connected_P_plumes,
+         unconn_N = Fiji_unconnected_N_plumes,
+         unconn_P = Fiji_unconnected_P_plumes,
+         tourist_N = Fiji_connected_tourism_N_plumes,
+         tourist_P = Fiji_connected_tourism_P_plumes)
 ```
 
 ```{r}
 st_write(corals_processed, here("output_data/Nutrients/Fiji_corals_nutrient_export.shp"), append = F)
- 
 ```
 
 
