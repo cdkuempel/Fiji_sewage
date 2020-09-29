@@ -1,0 +1,68 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "29/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+# Nutrients at pourpoints
+
+```{r}
+connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+unconnected<-read.csv(here("output_data/Nutrients/N_P_unconnected_per_basin.csv"))
+tourist<-read.csv(here("output_data/Sewage_plants/Connected_tourist_nutrients.csv"))
+```
+
+```{r}
+conn_N<-sum(connected$N, na.rm = T)
+unconn_N<-sum(unconnected$N, na.rm = T)
+conn_P<-sum(connected$P, na.rm = T)
+unconn_P<-sum(unconnected$P, na.rm = T)
+tourist_N<-sum(tourist$Total_N, na.rm = T)
+tourist_P<-sum(tourist$Total_P, na.rm = T)
+
+df<-data.frame(type = c("Connected", "Unconnected", "Connected", "Unconnected", "Connected_tourism", "Connected_tourism"),
+               nutrient = c("N", "N", "P", "P", "N", "P"),
+               value = c(conn_N, unconn_N, conn_P, unconn_P, tourist_N, tourist_P))
+
+
+
+sum(df$value) * 0.001
+```
+
+```{r}
+prop<-df %>% 
+  group_by(type) %>% 
+  summarise(all = sum(value, na.rm = T))
+
+prop<-prop %>% 
+  mutate(prop = all/sum(prop$all))
+```
+
+
+# Nutrients at corals
+
+```{r}
+coral_export<-st_read(here("output_data/Nutrients/Fiji_corals_nutrient_export.shp")) 
+
+coral_export<- coral_export %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  pivot_longer(., cols =c("conn_N" ,"conn_P" , "uncnn_N" , "uncnn_P" , "torst_N" , "torst_P" , "Total_N" , "Total_P" , "Ttl_ntr"), names_to = "type", values_to = "value") %>% 
+  group_by(type) %>% 
+  summarise(totals = sum(value, na.rm = T)) %>% 
+  mutate(totals_tonnes<-totals * 0.001)
+
+coral_export
+```
+# Bar plot of nutrient source
