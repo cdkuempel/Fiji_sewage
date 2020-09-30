@@ -96,7 +96,7 @@ buffer_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "b
 buffer_N_P<-function(x){
   
   buffer_ras<-raster(x)
-  
+  num<-as.numeric(regmatches(x, gregexpr("[[:digit:]]+", x)))
   N_unconnected<-N_cell * buffer_ras
   P_unconnected<-P_cell * buffer_ras
   
@@ -109,10 +109,10 @@ buffer_N_P<-function(x){
     rename(P = layer) %>% 
     dplyr::select(ID, N, P, MAIN_BAS)
   
-  write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_unconnected_per_basin_",x,"_buff.csv"))
+  write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_unconnected_per_basin_",num,"_buff.csv"))
 }
 
-pbmclapply(buffer_list, buffer_N_P, mc.cores = 15, mc.style = "ETA")
+pbmclapply(buffer_list, buffer_N_P, mc.cores = 10, mc.style = "ETA")
 
 
 
