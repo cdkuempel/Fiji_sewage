@@ -40,7 +40,7 @@ fiji_proj<-st_transform(fiji_tik, "+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.999
 
 fiji_proj<-st_zm(fiji_proj)
 
-st_write(fiji_proj, here("projected_data/Tikina/fji_proj.shp"), overwrite = T)
+st_write(fiji_proj, here("projected_data/Tikina/fji_proj.shp"), append = F)
 ```
 
 # Population density
@@ -65,7 +65,9 @@ pop_ras_proj<-raster(here("projected_data/Population/population_fji_proj.tif"))
 ```
 
 
-# STP Watershed boundaries
+# Connected populations
+
+STP Watershed boundaries
 
 Source - Water Authority Fiji
 
@@ -85,10 +87,16 @@ stp<-stp %>%
 # Summarise population within each STP watershed
 
 ```{r}
-fiji_pop_df<-extract(pop_ras_proj, fiji_proj, fun = sum, na.rm = T)
+#fiji_pop_df<-extract(pop_ras_proj, fiji_proj, fun = sum, na.rm = T)
 
-# Population is 1175078
+fiji_pop_df<-cellStats(pop_ras_proj, "sum")
+
+pop_df<-rasterToPoints(pop_ras_proj) %>% 
+  as.data.frame()
+
+ # Population is 1175078
 ```
+
 # Prop of population connected
 
 ```{r}
@@ -101,7 +109,9 @@ fiji_pop_df
 prop_pop
 
 #~16% of population is connected based on these estimates with Felipe's population density layer
-#~19.3% of population is connected based on the Facebook population density layer
+#~18.9% of population is connected based on the Facebook population density layer
+
+#1198468
 ```
 
 
@@ -118,6 +128,7 @@ This takes a long time - avoid if possible
 ```{r}
 #stp_ras<-rasterize(stp, pop_ras_proj, field = "ID")
 #writeRaster(stp_ras, here("output_data/Sewage_plants/stp_raster.tif"), overwrite = T)
+stp_ras<-raster(here("output_data/Sewage_plants/stp_raster.tif"))
 ```
 
 # Compare our results to reported results
@@ -152,4 +163,91 @@ pop_check<- stp %>%
 
 write.csv(here("output_data/Sewage_plants/STP_population_check.csv"))
 ```
+
+# Septic population
+
+Source: Fiji liquid waste management strategy and action plan 2007
+
+40% of the population uses septic systems
+
+```{r}
+urban<-raster(here("projected_data/Population/Fiji_urban.tif"))
+urban[urban>0]<-1
+```
+
+```{r}
+stp_pop<-stp_ras
+stp_pop[stp_pop>0]<-1
+
+stp_df<-rasterToPoints(stp_pop) %>% 
+  as.data.frame() %>% 
+  rename(stp = layer)
+
+#non_stp<-stp_pop
+#non_stp[non_stp==1]<-0
+#non_stp[is.na(non_stp)==T]<-1
+
+#test_df<-rasterToPoints(test)
+```
+
+```{r}
+urban<-resample(urban, pop_ras_proj)
+urban_df<-rasterToPoints(urban) %>% 
+  as.data.frame() 
+
+#unconn_urban<-urban * non_stp #These are the urban areas NOT covered by STPs
+#unconn_urban<-resample(unconn_urban, pop_ras_proj)
+```
+
+```{r}
+test<-full_join(pop_df, urban_df, by = c("x", "y")) %>% 
+  full_join(., stp_df, by = c("x", "y")) %>% 
+  mutate(id = 1:nrow(test))
+```
+
+```{r}
+stp_test<-test %>% 
+  filter(!is.na(stp) == T) %>% 
+  dplyr::select(x,y,population_fji_proj)
+
+stp_ras_pop<-rasterFromXYZ(stp_test, pop_ras_proj)
+crs(stp_ras_pop)<-crs(pop_ras_proj)
+writeRaster(stp_ras_pop,here("output_data/Population/Connected_population.tif"), overwrite = T)
+```
+
+stp population is 227461.9
+Total population is 1198468
+
+# Septic
+
+```{r}
+pop_target<-(fiji_pop_df-sum(stp_test$population_fji_proj,na.rm = T))/2
+
+septic<-test %>% 
+  filter(is.na(stp) == T) %>% 
+  dplyr::arrange(desc(population_fji_proj),
+                 desc(Fiji_urban)) %>% 
+  mutate(cumpop = cumsum(population_fji_proj)) %>% 
+  filter(cumpop<=pop_target) 
+
+septic2<-septic%>% 
+  dplyr::select(x,y,population_fji_proj)
+
+septic_ras<-rasterFromXYZ(septic2, pop_ras_proj)
+crs(septic_ras)<-crs(pop_ras_proj)
+writeRaster(septic_ras,here("output_data/Population/Septic_population.tif"), overwrite = T)
+```
+# Direct
+
+```{r}
+direct<-test %>% 
+  filter(is.na(stp) == T,
+         !id %in% septic$id) %>% 
+  dplyr::select(x,y, population_fji_proj)
+
+direct_ras<-rasterFromXYZ(direct, pop_ras_proj)
+crs(direct_ras)<-crs(pop_ras_proj)
+writeRaster(direct_ras,here("output_data/Population/Direct_population.tif"),overwrite = T)
+```
+
 
