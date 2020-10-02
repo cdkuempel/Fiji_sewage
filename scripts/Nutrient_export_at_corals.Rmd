@@ -21,6 +21,8 @@ library(rgrass7)
 library(parallel)
 library(here)
 library(pbmcapply)
+
+source(here("scripts/plume_functions.R"))
 ```
 
 # Combine all nutrient sources together
@@ -35,8 +37,13 @@ conn_P<-raster(here("output_data/Nutrients/Fiji_connected_P_plumes.tif"))
 Unconnected
 
 ```{r}
-unconn_N<-raster(here("output_data/Nutrients/Fiji_unconnected_N_plumes.tif"))
-unconn_P<-raster(here("output_data/Nutrients/Fiji_unconnected_P_plumes.tif"))
+septic_N<-raster(here("output_data/Nutrients/Fiji_septic_N_plumes.tif"))
+septic_P<-raster(here("output_data/Nutrients/Fiji_septic_P_plumes.tif"))
+```
+
+```{r}
+direct_N<-raster(here("output_data/Nutrients/Fiji_direct_N_plumes.tif"))
+direct_P<-raster(here("output_data/Nutrients/Fiji_direct_P_plumes.tif"))
 ```
 
 Tourism
@@ -50,18 +57,20 @@ Stack
 
 Change extents so they line up
 ```{r}
-unconn_N <- extend(unconn_N,conn_N)
-conn_N<-extend(conn_N, unconn_N)
-unconn_P <- extend(unconn_P,conn_N)
-conn_P<-extend(conn_P, unconn_N)
-conn_tourist_N<-extend(conn_tourist_N, unconn_N)
-conn_tourist_P<-extend(conn_tourist_P, unconn_N)
+septic_N <- extend(septic_N,direct_N)
+conn_N<-extend(conn_N, septic_N)
+septic_P <- extend(septic_P,direct_N)
+conn_P<-extend(conn_P, septic_N)
+direct_N <- extend(direct_N,septic_N)
+direct_P <- extend(direct_P,septic_N)
+conn_tourist_N<-extend(conn_tourist_N, septic_N)
+conn_tourist_P<-extend(conn_tourist_P, septic_N)
 ```
 
 
 
 ```{r}
-all<-stack(conn_N, conn_P, unconn_N, unconn_P, conn_tourist_N, conn_tourist_P)
+all<-stack(conn_N, conn_P, septic_N, septic_P, direct_N, direct_P,conn_tourist_N, conn_tourist_P)
 ```
 
 
@@ -89,65 +98,31 @@ corals_list<-split(fji_corals, fji_corals$ID)
 
 ```
 
-
-```{r}
-coral_func<-function(x){ # Y is plume data, X is coral list
-  sub<-x[1]
-  if(is.null(intersect(extent(all), extent(sub)))){ #57 is FALSE
-          focus_corals<-x[1]
-          #focus_corals<-st_cast(st_as_sf(focus_corals),"POLYGON")
-          focus_corals$Fiji_connected_N_plumes<-0
-          focus_corals$Fiji_connected_P_plumes<-0
-          focus_corals$Fiji_unconnected_N_plumes<-0
-          focus_corals$Fiji_unconnected_P_plumes<-0
-          focus_corals$Fiji_connected_tourism_N_plumes<-0
-          focus_corals$Fiji_connected_tourism_P_plumes<-0
-    }else{
-      focus_corals<-x[1]
-      #focus_corals<-st_cast(st_as_sf(focus_corals),"POLYGON")
-      #focus_corals$ID<-1:nrow(focus_corals)
-    #  done<-c()
-   # for(i in 1:nrow(focus_corals)){
-    #    sub_coral<-focus_corals[i,]
-        if(is.null(intersect(extent(all), extent(focus_corals)))){
-          focus_corals$Fiji_connected_N_plumes<-0
-          focus_corals$Fiji_connected_P_plumes<-0
-          focus_corals$Fiji_unconnected_N_plumes<-0
-          focus_corals$Fiji_unconnected_P_plumes<-0
-          focus_corals$Fiji_connected_tourism_N_plumes<-0
-          focus_corals$Fiji_connected_tourism_P_plumes<-0
-          }else{
-          raster.polygon<-crop(all,extent(focus_corals),snap = "near")
-          nutrients<-cellStats(raster.polygon,"mean") %>% 
-            as.data.frame() %>% 
-            tibble::rownames_to_column(., "Type") %>% 
-            rename(Value = ".") %>% 
-            pivot_wider(., names_from = Type, values_from = Value)
-          
-          focus_corals<-cbind(focus_corals, nutrients)
-        }
-        
-        #done<-rbind(done, focus_corals)
-        #focus_corals<-done
-    }
-  focus_corals
-}
-  
-```
-
 ```{r}
 nutri_corals<-pbmclapply(corals_list, coral_func, mc.cores = 20, mc.style = "ETA")
 
 corals_processed<-do.call(rbind,nutri_corals[1:length(nutri_corals)])
 
+
+
 corals_processed<-corals_processed %>% 
-  mutate(Total_N =Fiji_connected_N_plumes+Fiji_unconnected_N_plumes+Fiji_connected_tourism_N_plumes,
-         Total_P =Fiji_connected_P_plumes+Fiji_unconnected_P_plumes+Fiji_connected_tourism_P_plumes,
+  mutate(Fiji_connected_N_plumes=replace_na(Fiji_connected_N_plumes, 0),
+         Fiji_connected_P_plumes=replace_na(Fiji_connected_P_plumes, 0),
+         Fiji_septic_N_plumes=replace_na(Fiji_septic_N_plumes,0),
+         Fiji_septic_P_plumes=replace_na(Fiji_septic_P_plumes,0),
+         Fiji_direct_N_plumes=replace_na(Fiji_direct_N_plumes,0),
+         Fiji_direct_P_plumes=replace_na(Fiji_direct_P_plumes,0),
+         Fiji_connected_tourism_N_plumes=replace_na(Fiji_connected_tourism_N_plumes,0),
+         Fiji_connected_tourism_P_plumes=replace_na(Fiji_connected_tourism_P_plumes,0),
+         Total_N =Fiji_connected_N_plumes+Fiji_septic_N_plumes+Fiji_direct_N_plumes+Fiji_connected_tourism_N_plumes,
+         Total_P =Fiji_connected_P_plumes+Fiji_septic_P_plumes+Fiji_direct_P_plumes+Fiji_connected_tourism_P_plumes,
          Total_nutrients = Total_N + Total_P) %>% 
   rename(conn_N = Fiji_connected_N_plumes,
          conn_P = Fiji_connected_P_plumes,
-         unconn_N = Fiji_unconnected_N_plumes,
-         unconn_P = Fiji_unconnected_P_plumes,
+         direct_N = Fiji_direct_N_plumes,
+         direct_P = Fiji_direct_P_plumes,
+         septic_N = Fiji_septic_N_plumes,
+         septic_P = Fiji_septic_P_plumes,
          tourist_N = Fiji_connected_tourism_N_plumes,
          tourist_P = Fiji_connected_tourism_P_plumes)
 ```
