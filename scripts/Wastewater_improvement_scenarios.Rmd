@@ -24,7 +24,7 @@ library(ggplot2)
 STP N and P values
 
 ```{r}
-stp<-st_read("output_data/Sewage_plants/Nutrients_at_STP.shp") %>% 
+stp<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp")) %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry)
 ```
@@ -159,9 +159,9 @@ P_plot<-nutri_removal %>%
   mutate(xpoints = ifelse(actual_eff == rm_eff, actual_eff, NA),
          ypoints = ifelse(actual_eff == rm_eff, value, NA))
 
-ggplot(P_plot, aes(x = rm_eff, y = value/10000, col = STP)) +
+ggplot(P_plot, aes(x = rm_eff, y = value/100000, col = STP)) +
   geom_line() +
-  geom_point(aes(x = xpoints, y = ypoints/10000)) +
+  geom_point(aes(x = xpoints, y = ypoints/100000)) +
   theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
 panel.background = element_blank(), axis.line = element_line(colour = "black")) +
   xlab("Phosphorus removal efficiency") +
