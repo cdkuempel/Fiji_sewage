@@ -63,8 +63,8 @@ P_cell<-pop_ras_proj * P_emissions_human #kg/year/cell
 ```
 
 ```{r}
-writeRaster(N_cell, here("output_data/Nutrients/Fiji_N_per_cell.tif"))
-writeRaster(P_cell, here("output_data/Nutrients/Fiji_P_per_cell.tif"))
+writeRaster(N_cell, here("output_data/Nutrients/Fiji_N_per_cell.tif"),overwrite = T)
+writeRaster(P_cell, here("output_data/Nutrients/Fiji_P_per_cell.tif"), overwrite = T)
 ```
 
 
@@ -142,8 +142,8 @@ This takes awhile - avoid if possible
 ```
 
 ```{r}
-N_stp_removal<-raster(here("output_data/Sewage_plants/N_stp_removal.tif"))
-P_stp_removal<-raster(here("output_data/Sewage_plants/P_stp_removal.tif"))
+N_stp_removal<-raster(here("output_data/Sewage_plants/N_stp_removal.tif"), overwrite = T)
+P_stp_removal<-raster(here("output_data/Sewage_plants/P_stp_removal.tif"), overwrite = T)
 ```
 
 
@@ -183,12 +183,12 @@ sum(stp$N) * 0.001 #Tonnes/year
 sum(stp$P) * 0.001 #Tonnes/year
 ```
 
-Nutrients if no treatment occured
+Nutrients if no treatment occurred
 ```{r}
 stp<- stp %>% 
   mutate(N_notreatment = extract(N_cell, stp, fun = sum, na.rm = T),
          P_notreatment = extract(P_cell, stp, fun = sum, na.rm = T))
 
-st_write(stp, "output_data/Sewage_plants/Nutrients_at_STP.shp")
+st_write(stp, here("output_data/Sewage_plants/Nutrients_at_STP.shp"))
 ```
 
