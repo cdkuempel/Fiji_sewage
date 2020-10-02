@@ -12,6 +12,9 @@ library(raster)
 library(leaflet)
 library(shiny)
 library(tmap)
+library(here)
+library(sf)
+library(tidyverse)
 ```
 
 ```{r}
@@ -25,7 +28,7 @@ leaflet() %>% addTiles() %>%
             title= "Connected Nitrogen pollution")
 ```
 ```{r}
-r<-raster("output_data/Nutrients/Fiji_connected_P_plumes.tif")
+r<-raster(here("output_data/Nutrients/Fiji_connected_P_plumes.tif"))
 pal<-colorNumeric(c("#0C2C84", "#ff7400", "#ff0000"), values(r),
   na.color = "transparent")
 
@@ -36,7 +39,7 @@ leaflet() %>% addTiles() %>%
 ```
 
 ```{r}
-r<-raster("output_data/Nutrients/Fiji_unconnected_N_plumes.tif")
+r<-raster(here("output_data/Nutrients/Fiji_septic_N_plumes.tif"))
 pal<-colorNumeric(c("#0C2C84", "#ff7400", "#ff0000"), values(r),
   na.color = "transparent")
 
@@ -48,7 +51,7 @@ leaflet() %>% addTiles() %>%
 
 
 ```{r}
-r<-raster("output_data/Nutrients/Fiji_unconnected_P_plumes.tif")
+r<-raster(here("output_data/Nutrients/Fiji_septic_P_plumes.tif"))
 pal<-colorNumeric(c("#0C2C84", "#ff7400", "#ff0000"), values(r),
   na.color = "transparent")
 
@@ -59,7 +62,7 @@ leaflet() %>% addTiles() %>%
 ```
 
 ```{r}
-r<-raster("output_data/Nutrients/Fiji_unconnected_P_plumes.tif")
+r<-raster(here("output_data/Nutrients/Fiji_direct_N_plumes.tif"))
 pal<-colorNumeric(c("#0C2C84", "#ff7400", "#ff0000"), values(r),
   na.color = "transparent")
 
@@ -70,7 +73,7 @@ leaflet() %>% addTiles() %>%
 ```
 
 ```{r}
-r<-raster("output_data/Nutrients/Fiji_unconnected_P_plumes.tif")
+r<-raster(here("output_data/Nutrients/Fiji_direct_P_plumes.tif"))
 pal<-colorNumeric(c("#0C2C84", "#ff7400", "#ff0000"), values(r),
   na.color = "transparent")
 
@@ -83,8 +86,8 @@ leaflet() %>% addTiles() %>%
 # Data for mapping
 ```{r}
 fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
-  filter(!MAIN_BAS == 5120082250) %>% 
-  mutate(ID = 1) %>% 
+  filter(!MAIN_BAS %in% c(5120082250)) %>% 
+  mutate(ID = as.numeric(1)) %>% 
   group_by(ID) %>% 
   summarise(area_km2 = sum(area_km2, na.rm = T))
 
@@ -188,10 +191,23 @@ conn_N<-tm_shape(test) +
 
 ```{r}
 test<-coral_export %>% 
-    mutate(uncnn_N=ifelse(uncnn_N<=0, NA, as.numeric(uncnn_N)))
+    mutate(septc_N=ifelse(septc_N<=0, NA, as.numeric(septc_N)))
 
-unconn_N<-tm_shape(test) +
-  tm_fill(col = "uncnn_N", 
+septic_N<-tm_shape(test) +
+  tm_fill(col = "septc_N", 
+          title = "Nitrogen (kg)", 
+          style = "order",
+          textNA = "Zero or NA") +
+  tm_layout(legend.outside = FALSE, bg.color = "lightblue",
+            legend.position=c("left", "bottom"))
+```
+
+```{r}
+test<-coral_export %>% 
+    mutate(dirct_N=ifelse(dirct_N<=0, NA, as.numeric(dirct_N)))
+
+direct_N<-tm_shape(test) +
+  tm_fill(col = "dirct_N", 
           title = "Nitrogen (kg)", 
           style = "order",
           textNA = "Zero or NA") +
@@ -214,18 +230,19 @@ tourism_N<-tm_shape(test) +
 
 ```{r}
 n1<-fiji + conn_N +tm_scale_bar(position=c("right", "bottom")) + tm_layout(title = "Connected populations")
-n2<-fiji + unconn_N + tm_layout(title = "Unconnected populations")
-n3<-fiji + tourism_N + tm_layout(title = "Connected tourism")
+n2<-fiji + septic_N + tm_layout(title = "Septic populations")
+n3<-fiji + direct_N + tm_layout(title = "Direct populations")
+n4<-fiji + tourism_N + tm_layout(title = "Connected tourism")
 ```
 
 
 ```{r}
-nitrogen<-tmap_arrange(n1, n2, n3, ncol = 3, nrow = 1)
+nitrogen<-tmap_arrange(n1, n2, n3, n4, ncol = 2, nrow = 2)
 nitrogen
 ```
 
 ```{r}
-tmap_save(nitrogen, here("figures/Fiji_nitrogen.png"), width=20, height=8, asp=0)
+tmap_save(nitrogen, here("figures/Fiji_nitrogen.png"), width=10, height=10, asp=0)
 ```
 
 
@@ -246,10 +263,23 @@ conn_P<-tm_shape(test) +
 
 ```{r}
 test<-coral_export %>% 
-    mutate(uncnn_P=ifelse(uncnn_P<=0, NA, as.numeric(uncnn_P)))
+    mutate(septc_P=ifelse(septc_P<=0, NA, as.numeric(septc_P)))
 
-unconn_P<-tm_shape(test) +
-  tm_fill(col = "uncnn_P", 
+septic_P<-tm_shape(test) +
+  tm_fill(col = "septc_P", 
+          title = "Phosphorus (kg)", 
+          style = "order",
+          textNA = "Zero or NA") +
+  tm_layout(legend.outside = FALSE, bg.color = "lightblue",
+            legend.position=c("left", "bottom"))
+```
+
+```{r}
+test<-coral_export %>% 
+    mutate(dirct_P=ifelse(dirct_P<=0, NA, as.numeric(dirct_P)))
+
+direct_P<-tm_shape(test) +
+  tm_fill(col = "dirct_P", 
           title = "Phosphorus (kg)", 
           style = "order",
           textNA = "Zero or NA") +
@@ -274,17 +304,18 @@ tourism_P<-tm_shape(test) +
 
 ```{r}
 p1<-fiji + conn_P +tm_scale_bar(position=c("right", "bottom")) + tm_layout(title = "Connected populations")
-p2<-fiji + unconn_P + tm_layout(title = "Unconnected populations")
-p3<-fiji + tourism_P+ tm_layout(title = "Connected tourism")
+p2<-fiji + septic_P + tm_layout(title = "Septic populations")
+p3<-fiji + direct_P + tm_layout(title = "Direct populations")
+p4<-fiji + tourism_P+ tm_layout(title = "Connected tourism")
 ```
 
 
 ```{r}
-phosphorus<-tmap_arrange(p1, p2, p3, ncol = 3, nrow = 1)
+phosphorus<-tmap_arrange(p1, p2, p3,p4, ncol = 2, nrow = 2)
 phosphorus
 ```
 
 
 ```{r}
-tmap_save(phosphorus, here("figures/Fiji_phosphorus.png"), width=20, height=8, asp=0)
+tmap_save(phosphorus, here("figures/Fiji_phosphorus.png"), width=10, height=10, asp=0)
 ```
