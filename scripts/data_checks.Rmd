@@ -93,12 +93,25 @@ flow<-read.csv(here("raw_data/Sewage_plants/WWTP_flow_data.csv")) %>%
   filter(!WWTP == "") %>% 
   pivot_longer(., cols = c("X2010":"X2019"), values_to = "flow", names_to = "Year") %>% 
   filter(Year %in% c("X2015", "X2016", "X2017", "X2018","X2019")) %>% 
-  mutate(flow = as.numeric(flow)) %>% 
+  mutate(flow = as.numeric(flow),
+         res_flow = flow * 0.7) %>% 
   group_by(WWTP) %>% 
-  summarise(avg_flow = mean(flow,na.rm = T)) %>% 
+  summarise(avg_flow = mean(res_flow,na.rm = T)) %>% 
   mutate(STP = ifelse(WWTP == "Votua", "Ba",
                       ifelse(WWTP == "Natabua", "Lautoka", as.character(WWTP))),
          litres = avg_flow * 1000000)
+```
+70% of flow is residential - except Wailada, ACS and Naboro bc they are institutional/industrial areas
+
+```{r}
+res_ind<-read.csv(here("raw_data/Sewage_plants/WWTP_flow_residential_industrial.csv")) %>% 
+  rename(residential = "Residential..70..",
+         flow_2010 = "X2010..Megalitres.") %>% 
+  mutate(STP = ifelse(STP == "Votua", "Ba",
+                      ifelse(STP == "Natabua", "Lautoka", as.character(STP))),
+         residential = replace_na(residential, 0),
+         prop_res = residential/flow_2010) %>% 
+  dplyr::select(STP, prop_res)
 ```
 
 Join by STP
@@ -117,7 +130,7 @@ pflow<-stp_flow %>%
   dplyr::select(STP, P) %>% 
   filter(!is.na(P) == T)
 
-flow_final<-full_join(nflow, pflow, by = "STP")
+flow_final<-full_join(nflow, pflow, by = "STP") 
 ```
 
 Estimated nutrients
