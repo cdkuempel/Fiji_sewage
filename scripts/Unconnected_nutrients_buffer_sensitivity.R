@@ -20,7 +20,8 @@ stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>%
   mutate(area = st_area(.)) %>% 
   group_by(STP) %>% 
   summarise(area = sum(area, na.rm = T)) %>% 
-  filter(!is.na(STP) == T) 
+  filter(!is.na(STP) == T,
+         !STP %in% c("ACS WWTP", "Wailada WWTP", "Naboro WWTP")) 
 
 
 # River data
@@ -69,8 +70,10 @@ gc()
 
 # N and P pollution
 
-N_cell<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
-P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
+N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
+P_cell_septic<-raster(here("output_data/Nutrients/Septic_P.tif"))
+N_cell_direct<-raster(here("output_data/Nutrients/Direct_N.tif"))
+P_cell_direct<-raster(here("output_data/Nutrients/Direct_P.tif"))
 
 # Nutrients within watersheds
 
@@ -93,26 +96,93 @@ fiji_basins12<-fiji_basins12 %>%
 
 buffer_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
 
-buffer_N_P<-function(x){
+buffer_N_P<-function(x,
+                     N_ras,
+                     P_ras,
+                     name){
   
   buffer_ras<-raster(x)
   num<-as.numeric(regmatches(x, gregexpr("[[:digit:]]+", x)))
-  N_unconnected<-N_cell * buffer_ras
-  P_unconnected<-P_cell * buffer_ras
   
-  basin_N_unconnected<-raster::extract(N_unconnected, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
-  basin_P_unconnected<-raster::extract(P_unconnected, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+  N<-N_ras * buffer_ras
+  P<-P_ras * buffer_ras
   
-  basins_nutri_df<-full_join(basin_N_unconnected, fiji_basins12, by = "ID") %>% 
+  basin_N<-raster::extract(N, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+  basin_P<-raster::extract(P, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+  
+  basins_nutri_df<-full_join(basin_N, fiji_basins12, by = "ID") %>% 
     rename(N = layer) %>% 
-    full_join(., basin_P_unconnected, by = "ID") %>% 
+    full_join(., basin_P, by = "ID") %>% 
     rename(P = layer) %>% 
     dplyr::select(ID, N, P, MAIN_BAS)
   
-  write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_unconnected_per_basin_",num,"_buff.csv"))
-}
+  
+  write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_", name,"_per_basin_",num,"_buff.csv"))
 
-pbmclapply(buffer_list, buffer_N_P, mc.cores = 10, mc.style = "ETA")
+  }
+
+pbmclapply(buffer_list, buffer_N_P, N_cell_septic, P_cell_septic, "septic", mc.cores = 1, mc.style = "ETA")
+
+pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.cores = 1, mc.style = "ETA")
+
+
+# Add in no buffer value
+
+pop_ras_proj<-raster(here("projected_data/Population/population_fji_proj.tif"))
+
+stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
+                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(STP) %>% 
+  summarise(area = sum(area, na.rm = T)) %>% 
+  filter(!is.na(STP) == T,
+         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP")) 
+
+stp<-stp %>% 
+  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
+         ID = 1:nrow(stp))
+
+
+#stp_ras<-rasterize(stp, pop_ras_proj, field = "ID")
+#writeRaster(stp_ras, here("output_data/Sewage_plants/stp_raster_residential.tif"), overwrite = T)
+stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
+
+stp_ras2<-stp_ras
+stp_ras2[stp_ras2>0]<-0
+stp_ras2[is.na(stp_ras2) == T]<-1
+
+N_cell_septic_all<-N_cell_septic * stp_ras2
+P_cell_septic_all<-P_cell_septic * stp_ras2
+N_cell_direct_all<-N_cell_direct * stp_ras2
+P_cell_direct_all<-P_cell_direct * stp_ras2
+
+
+
+septic_basin_N<-raster::extract(N_cell_septic_all, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+septic_basin_P<-raster::extract(P_cell_septic_all, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+
+direct_basin_N<-raster::extract(N_cell_direct_all, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+direct_basin_P<-raster::extract(P_cell_direct_all, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+
+septic_basins_nutri_df<-full_join(septic_basin_N, fiji_basins12, by = "ID") %>% 
+  rename(N = layer) %>% 
+  full_join(., septic_basin_P, by = "ID") %>% 
+  rename(P = layer) %>% 
+  dplyr::select(ID, N, P, MAIN_BAS)
+
+direct_basins_nutri_df<-full_join(direct_basin_N, fiji_basins12, by = "ID") %>% 
+  rename(N = layer) %>% 
+  full_join(., direct_basin_P, by = "ID") %>% 
+  rename(P = layer) %>% 
+  dplyr::select(ID, N, P, MAIN_BAS)
+
+# Name with large number even though it is technically no buffer
+
+write.csv(septic_basins_nutri_df, "/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_septic_per_basin_no_buff.csv")
+
+write.csv(direct_basins_nutri_df, "/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_direct_per_basin_no_buff.csv")
+
 
 
 
