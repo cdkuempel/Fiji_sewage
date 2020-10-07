@@ -107,6 +107,14 @@ direct_N<-N_cell * direct
 direct_P<-P_cell * direct
 ```
 
+```{r}
+writeRaster(septic_N,here("output_data/Nutrients/Septic_N.tif"),overwrite = T)
+writeRaster(septic_P,here("output_data/Nutrients/Septic_P.tif"),overwrite = T)
+writeRaster(direct_N,here("output_data/Nutrients/Direct_N.tif"),overwrite = T)
+writeRaster(direct_P,here("output_data/Nutrients/Direct_P.tif"),overwrite = T)
+```
+
+
 # Rasterize buffer
 
 This takes awhile - avoid if possible
