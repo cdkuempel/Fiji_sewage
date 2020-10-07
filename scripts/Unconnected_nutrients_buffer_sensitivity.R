@@ -127,25 +127,6 @@ pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.c
 
 
 # Add in no buffer value
-
-pop_ras_proj<-raster(here("projected_data/Population/population_fji_proj.tif"))
-
-stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
-  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
-                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
-  mutate(area = st_area(.)) %>% 
-  group_by(STP) %>% 
-  summarise(area = sum(area, na.rm = T)) %>% 
-  filter(!is.na(STP) == T,
-         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP")) 
-
-stp<-stp %>% 
-  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
-         ID = 1:nrow(stp))
-
-
-#stp_ras<-rasterize(stp, pop_ras_proj, field = "ID")
-#writeRaster(stp_ras, here("output_data/Sewage_plants/stp_raster_residential.tif"), overwrite = T)
 stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
 
 stp_ras2<-stp_ras
