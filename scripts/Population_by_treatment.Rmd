@@ -78,12 +78,14 @@ stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>%
   mutate(area = st_area(.)) %>% 
   group_by(STP) %>% 
   summarise(area = sum(area, na.rm = T)) %>% 
-  filter(!is.na(STP) == T) 
+  filter(!is.na(STP) == T,
+         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP")) 
   
 stp<-stp %>% 
   mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
          ID = 1:nrow(stp))
 ```
+
 # Summarise population within each STP watershed
 
 ```{r}
@@ -121,14 +123,15 @@ prop_pop
 stp_pop<-crop(pop_ras_proj, stp, snap = "near")
 ```
 
+
 # Rasterize STP shapefile
 
 This takes a long time - avoid if possible
 
 ```{r}
 #stp_ras<-rasterize(stp, pop_ras_proj, field = "ID")
-#writeRaster(stp_ras, here("output_data/Sewage_plants/stp_raster.tif"), overwrite = T)
-stp_ras<-raster(here("output_data/Sewage_plants/stp_raster.tif"))
+#writeRaster(stp_ras, here("output_data/Sewage_plants/stp_raster_residential.tif"), overwrite = T)
+stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
 ```
 
 # Compare our results to reported results
@@ -137,17 +140,18 @@ Source - Table 1 from Fiji national liquid waste management strategy and action 
 
 ```{r}
 reported_conn<-read.csv(here("raw_data/Sewage_plants/STP_pop_connected.csv")) %>% 
-  mutate(ID = ifelse(STP_name == "Adi_Cakobau School", 1,
-                     ifelse(STP_name == "Pacific_Harbour", 2,
-                            ifelse(STP_name == "Suva_Kinoya", 3,
-                                   ifelse(STP_name == "Naboro Prison", 4,
-                                          ifelse(STP_name == "Nausori", 5,
-                                                 ifelse(STP_name ==  "Labasa", 6,
-                                                        ifelse(STP_name == "Lautoka", 7,
-                                                               ifelse(STP_name ==  "Nadi", 8,
-                                                                      ifelse(STP_name == "Sigatoka", 9,
-                                                                             ifelse(STP_name == "Ba", 10,
-                                                                                    ifelse(STP_name == "Wailada", 11, NA))))))))))))
+  mutate(ID = ifelse(STP_name == "Adi_Cakobau School", NA,
+                     ifelse(STP_name == "Pacific_Harbour", 1,
+                            ifelse(STP_name == "Suva_Kinoya", 2,
+                                   ifelse(STP_name == "Naboro Prison", NA,
+                                          ifelse(STP_name == "Nausori", 3,
+                                                 ifelse(STP_name ==  "Labasa", 4,
+                                                        ifelse(STP_name == "Lautoka", 5,
+                                                               ifelse(STP_name ==  "Nadi", 6,
+                                                                      ifelse(STP_name == "Sigatoka", 7,
+                                                                             ifelse(STP_name == "Ba", 8,
+                                                                                    ifelse(STP_name == "Wailada", NA, NA))))))))))))
+
 ```
 
 Join to estimates
@@ -201,7 +205,9 @@ urban_df<-rasterToPoints(urban) %>%
 
 ```{r}
 test<-full_join(pop_df, urban_df, by = c("x", "y")) %>% 
-  full_join(., stp_df, by = c("x", "y")) %>% 
+  full_join(., stp_df, by = c("x", "y")) 
+
+test<-test %>% 
   mutate(id = 1:nrow(test))
 ```
 
@@ -212,7 +218,7 @@ stp_test<-test %>%
 
 stp_ras_pop<-rasterFromXYZ(stp_test, pop_ras_proj)
 crs(stp_ras_pop)<-crs(pop_ras_proj)
-writeRaster(stp_ras_pop,here("output_data/Population/Connected_population.tif"), overwrite = T)
+#writeRaster(stp_ras_pop,here("output_data/Population/Connected_population.tif"), overwrite = T)
 ```
 
 stp population is 227461.9
