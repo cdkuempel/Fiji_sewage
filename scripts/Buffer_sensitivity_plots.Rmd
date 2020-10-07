@@ -1,0 +1,85 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "06/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(ggplot2)
+library(tidyverse)
+```
+
+# Load data
+
+```{r}
+septic_list<-list.files(path = here("/output_data/Nutrients/buffers/"), pattern = "septic", full.names = T)
+direct_list<-list.files(path = here("/output_data/Nutrients/buffers/"), pattern = "direct", full.names = T)
+```
+
+# Calculate total nutrients
+
+```{r}
+all<-c()
+
+nutrient_df<-function(x, y){
+  df<-read.csv(x)
+  num<-as.numeric(regmatches(x, gregexpr("[[:digit:]]+", x)))
+  if(is.na(num) == T){
+    num <- "no_buffer"
+  }
+  n<-sum(df$N, na.rm = T)
+  p<-sum(df$P, na.rm = T)
+  
+  fin<-data.frame(type = y, buff = num, nitrogen = n, phosphorus = p)
+  all<-rbind(all, fin)
+}
+```
+
+
+```{r}
+septic<-lapply(septic_list, nutrient_df, "septic")
+direct<-lapply(direct_list, nutrient_df, "direct")
+```
+
+```{r}
+septic_final<-do.call(rbind,septic[1:length(septic)]) %>% 
+  pivot_longer(., cols = c("nitrogen", "phosphorus"), names_to = "nutrient", values_to = "value") %>%  
+  mutate(buff2 = as.factor(buff))
+
+septic_final$buff2<-factor(septic_final$buff2, levels = c("100", "200", "300", "400", "500", "600", "700", "800", "900", "1000", "1100", "1200", "1300", "1400", "1500", "1600", "1700", "1800", "1900", "2000", "no_buffer"))
+
+direct_final<-do.call(rbind,direct[1:length(direct)]) %>% 
+  pivot_longer(., cols = c("nitrogen", "phosphorus"), names_to = "nutrient", values_to = "value") %>%  
+  mutate(buff2 = as.factor(buff))
+
+direct_final$buff2<-factor(direct_final$buff2, levels = c("100", "200", "300", "400", "500", "600", "700", "800", "900", "1000", "1100", "1200", "1300", "1400", "1500", "1600", "1700", "1800", "1900", "2000", "no_buffer"))
+
+#all<-rbind(septic_final, direct_final)
+#all$buff2 <- factor(all$buff, levels = all$buff[order(all$nutrient)])
+```
+
+
+
+```{r}
+ggplot(septic_final, aes(x = buff2, y = value/100000, col = nutrient)) +
+  geom_point() +
+  #facet_wrap(~type) +
+  theme_bw() +
+  xlab("Buffer size (meters)") +
+  ylab("Nutrients (hundreds of thousands, kg)")
+```
+
+```{r}
+ggplot(direct_final, aes(x = buff2, y = value/100000, col = nutrient)) +
+  geom_point() +
+  #facet_wrap(~type) +
+  theme_bw() +
+  xlab("Buffer size (meters)") +
+  ylab("Nutrients (hundreds of thousands, kg)")
+```
