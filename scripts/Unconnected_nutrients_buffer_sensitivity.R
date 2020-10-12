@@ -2,13 +2,15 @@ library(tidyverse)
 library(sf)
 #library(startR)
 library(here)
-library(raster)
 library(gdalUtils)
 library(tabularaster)
 library(units)
 library(rgdal)
 library(lwgeom)
 library(pbmcapply)
+library(fasterize)
+devtools::install_github("rspatial/raster")
+library(raster)
 
 
 
@@ -31,13 +33,10 @@ rivers_proj<-st_transform(rivers_proj, st_crs(stp))
 
 # N and P pollution
 
-N_cell<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
-P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
+N_unconnected<-raster(here("output_data/Nutrients/N_unconnected.tif"))
 
 # Buffer river
 
-#For now I do 500 m each side - determine a more defensible value?
-  
 #  Could also buffer coastline?
   
 #  Could also do something like Steph Borelle's paper on plastics:
@@ -45,18 +44,15 @@ P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
 #https://science.sciencemag.org/content/suppl/2020/09/16/369.6510.1515.DC1
 
 
-buff<-seq(from = 100, to = 2000, by = 100) %>% as.list()
+buff<-seq(from = 100, to = 3000, by = 100) %>% as.list()
 
 create_buff<-function(x){
   
 buffer_rivers<-st_buffer(rivers_proj, dist = x) %>% 
-  mutate(ID = 1)
+  mutate(ID = 1) %>% 
+  st_cast(., "POLYGON")
 
-diff_buffer<-st_difference(buffer_rivers, st_union(stp))
-
-st_write(diff_buffer, paste0("/home/kuempel/Fiji_sewage/output_data/Rivers/buffers/River_buffer_stprm_",x,".shp"), append = F)
-
-buffer_ras<-rasterize(diff_buffer, N_cell, field = "ID")
+buffer_ras<-fasterize(buffer_rivers, N_unconnected)
 
 writeRaster(buffer_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Rivers/buffers/buffer_rivers_",x,".tif"),overwrite = T)
 
@@ -71,8 +67,11 @@ gc()
 # N and P pollution
 
 N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
+
 P_cell_septic<-raster(here("output_data/Nutrients/Septic_P.tif"))
+
 N_cell_direct<-raster(here("output_data/Nutrients/Direct_N.tif"))
+
 P_cell_direct<-raster(here("output_data/Nutrients/Direct_P.tif"))
 
 # Nutrients within watersheds
@@ -96,6 +95,8 @@ fiji_basins12<-fiji_basins12 %>%
 
 buffer_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
 
+buffer_list<-buffer_list[1:10]
+
 buffer_N_P<-function(x,
                      N_ras,
                      P_ras,
@@ -110,6 +111,7 @@ buffer_N_P<-function(x,
   basin_N<-raster::extract(N, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
   basin_P<-raster::extract(P, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
   
+
   basins_nutri_df<-full_join(basin_N, fiji_basins12, by = "ID") %>% 
     rename(N = layer) %>% 
     full_join(., basin_P, by = "ID") %>% 
@@ -121,7 +123,7 @@ buffer_N_P<-function(x,
 
   }
 
-pbmclapply(buffer_list, buffer_N_P, N_cell_septic, P_cell_septic, "septic", mc.cores = 1, mc.style = "ETA")
+pbmclapply(buffer_list, buffer_N_P, N_cell_septic, P_cell_septic, "septic", mc.cores = 2, mc.style = "ETA")
 
 pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.cores = 1, mc.style = "ETA")
 
