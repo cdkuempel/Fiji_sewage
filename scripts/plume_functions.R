@@ -1,14 +1,13 @@
 #pp_sf<-point_list[[1]]
 #buffer_value<-80000
-#resolution_raster<-c(1110,894)
+#resolution_raster<-c(30.58452,30.58452)
 #searchdistance<-90000
 
 N_plume<-function(pp_sf,#list of pour points
                      ocean_raster,
                      buffer_value,#buffer from pour point
                      resolution_raster,#in meters
-                     searchdistance #max searching distance to snap the points to the coast
-                     
+                     searchdistance
 ){
   #set initial sediment value
   initial.value<-pp_sf@data$N
@@ -23,7 +22,7 @@ N_plume<-function(pp_sf,#list of pour points
   
   point_1000<-st_buffer(point, 500)#
   #create raster of pour point
-  r2  <- raster(ncol=1, nrow=1, xmn=extent(point_1000)[1], xmx=extent(point_1000)[2], ymn=extent(point_1000)[3], ymx=extent(point_1000)[4])
+  r2  <- raster(ncol=1, nrow=1, xmn=extent(point_1000)[1], xmx=extent(point_1000)[2], ymn=extent(point_1000)[3], ymx=extent(point_1000)[4], res = resolution_raster)
   crs(r2)<-crs(ocean_raster)
   r2[]<-initial.value
   
@@ -51,7 +50,7 @@ N_plume<-function(pp_sf,#list of pour points
     point<-st_as_sf(pp_sf,coords=c("longitude.y","latitude.y"))
     point_1000<-st_buffer(point, 500)#
     #create raster of pour point
-    r2  <- raster(ncol=1, nrow=1, xmn=extent(point_1000)[1], xmx=extent(point_1000)[2], ymn=extent(point_1000)[3], ymx=extent(point_1000)[4])
+    r2  <- raster(ncol=1, nrow=1, xmn=extent(point_1000)[1], xmx=extent(point_1000)[2], ymn=extent(point_1000)[3], ymx=extent(point_1000)[4], res = resolution_raster)
     crs(r2)<-crs(ocean_raster)
     r2[]<-initial.value
     r3 = sum_all(list(r1,r2), extend_all(list(r1,r2)))
