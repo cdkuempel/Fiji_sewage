@@ -212,7 +212,7 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
   
-  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_septic_N_plumes.tif")))
+  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_septic_N_plumes.tif")), overwrite = T)
 
 ```
 
@@ -232,7 +232,7 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
   
-  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_septic_P_plumes.tif")))
+  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_septic_P_plumes.tif")), overwrite = T)
 
 ```
 
