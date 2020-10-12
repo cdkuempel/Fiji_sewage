@@ -21,13 +21,15 @@ library(units)
 library(rgdal)
 library(lwgeom)
 
-source("plumes_functions.R")
+source(here("scripts/plume_functions.R"))
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
 
 # Population raster
 
 ```{r}
-pop_ras_proj<-raster(here("projected_data/Population/population_fji_proj.tif"))
+pop_ras_proj<-raster(here("projected_data/Population/population_fji_albers.tif"))
 ```
 
 # Calculate N and P from human population
@@ -127,7 +129,8 @@ nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv"))
                                                                ifelse(STP ==  "Navakai", 6,
                                                                       ifelse(STP == "Olosara", 7,
                                                                              ifelse(STP == "Ba", 8,
-                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))))
+                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))),
+         nutri_left = (1-rm_eff))
 
 N_removal<-nutri_removal %>% 
   filter(type == "N",
@@ -143,8 +146,8 @@ Make sewage treatment into a raster
 This takes awhile - avoid if possible
 
 ```{r}
-N_stp_removal<-subs(stp_ras, N_removal, by= "ID", which="rm_eff")
-P_stp_removal<-subs(stp_ras, P_removal, by= "ID", which="rm_eff")
+N_stp_removal<-subs(stp_ras, N_removal, by= "ID", which="nutri_left")
+P_stp_removal<-subs(stp_ras, P_removal, by= "ID", which="nutri_left")
 ```
 
 ```{r}
@@ -179,10 +182,10 @@ P_unconnected<- P_cell * test2
 ```
 
 ```{r}
-writeRaster(N_connected, here("output_data/Sewage_plants/N_connected.tif"), overwrite = T)
-writeRaster(P_connected, here("output_data/Sewage_plants/P_connected.tif"), overwrite = T)
-writeRaster(N_unconnected, here("output_data/Sewage_plants/N_unconnected.tif"), overwrite = T)
-writeRaster(P_unconnected, here("output_data/Sewage_plants/P_unconnected.tif"), overwrite = T)
+writeRaster(N_connected, here("output_data/Nutrients/N_connected.tif"), overwrite = T)
+writeRaster(P_connected, here("output_data/Nutrients/P_connected.tif"), overwrite = T)
+writeRaster(N_unconnected, here("output_data/Nutrients/N_unconnected.tif"), overwrite = T)
+writeRaster(P_unconnected, here("output_data/Nutrients/P_unconnected.tif"), overwrite = T)
 ```
 
 
