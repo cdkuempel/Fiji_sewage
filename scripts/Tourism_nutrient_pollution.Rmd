@@ -1,0 +1,619 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "15/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rgdal)
+library(sf)
+library(tidyverse)
+library(countrycode)
+library(here)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+options(scipen = 999)
+```
+
+
+
+# Calculate Nutrients from tourists
+
+
+
+In this code we estimate the contribution of tourists to sewage pollution in Fiji.
+
+# Visitor Arrivals by country 2018
+
+Data is from Fiji's Bureau of Statistics: https://www.statsfiji.gov.fj/index.php/statistics/tourism-and-migration-statistics/visitor-arrivals-statistics
+
+Potentially use a different year?
+
+```{r}
+visit_arrivals<-read_csv(here("raw_data/Tourism/Fiji_Visitor_Arrivals_by_Country.csv")) %>% 
+  dplyr::select(-X5, -X6, -X7, -X8, -X9, -X10, -X11) %>% 
+  filter(!Country == "Total") %>% 
+  group_by(Country) %>% 
+  summarise(Total_vistors = sum(Visitor_arrivals, na.rm = T)) %>% 
+  mutate(Country = ifelse(Country == "Korea", "South Korea", as.character(Country)))
+
+```
+
+# Visitors from each country by region
+
+```{r}
+visitors_region<-read_csv(here("raw_data/Tourism/Fiji_tourists_by_region.csv"))
+
+prop_visitors_region<- visitors_region %>% 
+  group_by(Country) %>% 
+  summarise(Total_visitors = sum(Num_visitors, na.rm = T)) %>% 
+  left_join(., visitors_region, by = "Country") %>% 
+  mutate(prop_visitors = Num_visitors/Total_visitors)
+
+#test<-prop_visitors_region %>% 
+#  filter(Country == "Australia")
+```
+
+# Rooms and beds occupied in each region
+
+Data source: https://fhta.com.fj/wp-content/uploads/2019/01/Qtr.-3-2018.pdf
+
+```{r}
+beds_sold<-read_csv(here("raw_data/Tourism/Fiji_room_bed_sold_by_region.csv")) %>% 
+  group_by(Area) %>% 
+  summarise(Total_beds_sold = sum(Beds_sold, na.rm = T),
+            Total_rooms_sold = sum(Rooms_sold, na.rm = T)) %>% 
+  mutate(Prop_beds_sold = Total_beds_sold/sum(Total_beds_sold, na.rm = T),
+         Prop_rooms_sold= Total_rooms_sold/sum(Total_rooms_sold, na.rm = T))
+```
+
+# Protein supply by country
+
+```{r}
+protein_supply<-read_csv(here("raw_data/Protein_supply/protein-supply-by-region.csv")) %>% 
+  filter(Year == 2013) %>% 
+  rename(Protein_g_capita_day = `Food Balance Sheets: Grand Total - Protein supply quantity (g/capita/day) (FAO (2017)) (g/capita/day)`)
+```
+
+```{r}
+plant_protein_supply<-read_csv(here("raw_data/Protein_supply/FAOSTAT_vegetable_protein_consumption.csv")) %>% 
+  filter(Year == 2013,
+         Item == "Vegetal Products") %>% 
+  dplyr::select(Country, Year, Item, Value) %>% #unit is g/capita/day
+  mutate(Code = countrycode(Country, "country.name", "iso3c")) %>%
+  rename(plant_protein = Value)
+```
+
+```{r}
+protein_supply<-full_join(protein_supply, plant_protein_supply, by = c("Code", "Year"))
+```
+
+# Join Visitors and protein supply
+
+Visitor data has groups of countries-for this we take the mean protein for the group of countries
+
+```{r}
+# Countries by continent
+
+continent<-read_csv(here("raw_data/Tourism/Countries_by_continent.csv"))
+
+# Taiwan included in rest of Asia
+
+# Countries in "Rest_of_Asia" = 
+# Countries in "Continental Europe" = 
+# Countries in "Pacific Islands" =
+# Countries in "Others" = 
+
+#> unique(visit_arrivals$Country)
+# [1] "Australia"       "Canada"          "China"           "Europe"          "Hong Kong"       "India"           "Japan"           "South Korea"    
+# [9] "New Zealand"     "Others"          "Pacific_Islands" "Rest_of_Asia"    "United Kingdom"  "United States"  
+
+rest_of_asia<-continent %>% 
+  filter(Continent == "Asia",
+         !ISO3 %in% c("CHN", "HKG", "IND", "JPN", "KOR"))
+
+cont_europe<-continent %>% 
+  filter(Continent == "Europe",
+         !ISO3 %in% c("ALA", "ISL", "IRL", "GGY", "IMN", "MLT", "GBR", "FRO", "SJM", "HRV", "GIB", "JEY"),
+         !is.na(ISO3) == T)
+  
+pi<-continent %>% 
+  filter(Continent == "Oceania",
+         !ISO3 %in% c("NZL", "AUS", "FJI"),
+         !Region1 == "Australia and New Zealand")
+
+  
+# For now we do not include Others with accounts for 4974 or 0.5% of visitors
+```
+
+
+```{r}
+rest_of_asia_protein<-left_join(rest_of_asia, protein_supply, by = c("ISO3" = "Code")) %>% 
+  summarise(Protein_g_capita_day = mean(Protein_g_capita_day, na.rm = T),
+            Plant_protein = mean(plant_protein, na.rm = T))
+
+cont_europe_protein<-left_join(cont_europe, protein_supply, by = c("ISO3" = "Code")) %>% 
+  summarise(Protein_g_capita_day = mean(Protein_g_capita_day, na.rm = T),
+            Plant_protein = mean(plant_protein, na.rm = T))
+
+pi_protein<-left_join(pi, protein_supply, by = c("ISO3" = "Code")) %>% 
+  summarise(Protein_g_capita_day = mean(Protein_g_capita_day, na.rm = T),
+            Plant_protein = mean(plant_protein, na.rm = T))
+
+
+```
+
+
+# Calculate Nutrients from visitors
+
+```{r}
+avg_stay = 11.4 #days - reference is from https://pic.or.jp/ja/wp-content/uploads/2019/07/2018-Annual-Visitor-Arrivals-ReportF.pdf
+
+
+visitor_nutrients<-visit_arrivals %>% 
+  filter(!Country == "Others") %>% 
+  left_join(., protein_supply, by = c("Country" = "Entity")) %>% 
+  mutate(Protein_g_capita_day = as.numeric(Protein_g_capita_day),
+         Protein_g_capita_day = ifelse(Country == "Rest_of_Asia", as.numeric(round(rest_of_asia_protein$Protein_g_capita_day,2)),
+                                       ifelse(Country == "Europe", as.numeric(round(cont_europe_protein$Protein_g_capita_day,2)),
+                                              ifelse(Country == "Pacific_Islands", as.numeric(round(pi_protein$Protein_g_capita_day,2)),
+                                                     ifelse(Country == "Hong Kong", 129.18, as.numeric(Protein_g_capita_day))))),
+         Plant_protein = as.numeric(plant_protein),
+         Plant_protein= ifelse(Country == "Rest_of_Asia", as.numeric(round(rest_of_asia_protein$Plant_protein,2)),
+                                       ifelse(Country == "Europe", as.numeric(round(cont_europe_protein$Plant_protein,2)),
+                                              ifelse(Country == "Pacific_Islands", as.numeric(round(pi_protein$Plant_protein,2)),
+                                                     ifelse(Country == "Hong Kong", 34.77, as.numeric(Plant_protein))))),
+         Protein_N_intake = Protein_g_capita_day * 0.13,
+         #Protein_P_intake = Protein_g_capita_day *(1/6),
+         #N_excretion_human = Protein_N_intake * (0.8+0.17),
+         P_excretion_human = 0.011 * (Protein_g_capita_day + Plant_protein), 
+         N_emissions_human = Protein_N_intake * avg_stay/1000, #kg/person/year
+         P_emissions_human = P_excretion_human* avg_stay/1000,#kg/person/year
+         N_emissions_visitors = N_emissions_human * Total_vistors, #kg/country tourists total/year
+         P_emissions_visitors = P_emissions_human * Total_vistors) 
+
+```
+
+
+# Join to visitor by region data
+
+```{r}
+visitor_nutrients_region<-visitor_nutrients %>% 
+  mutate(Country2 = ifelse(Country == "Europe", "Cont. Europe",
+                           ifelse(Country == "United States", "USA",
+                           ifelse(Country %in% c("Hong Kong", "India", "Japan", "South Korea", "Rest_of_Asia", "Pacific_Islands", "United Kingdom", "China"), "Others", as.character(Country))))) %>% 
+  left_join(., prop_visitors_region, by = c("Country2" = "Country")) %>% 
+  mutate(N_visitors_region = N_emissions_visitors * prop_visitors,
+         P_visitors_region = P_emissions_visitors * prop_visitors) 
+
+test<-visitor_nutrients_region %>% 
+  filter(Country == "Australia")
+
+test<-visitor_nutrients_region %>% 
+  filter(Area == "Coral Coast")
+
+
+visitor_nutrients_region2<-visitor_nutrients_region %>% 
+  group_by(Area) %>% 
+  summarise(Total_N = sum(N_visitors_region,na.rm = T),
+            Total_P = sum(P_visitors_region, na.rm = T))
+```
+
+# Spatialize region data
+
+Coral Coast - check
+Lautoka - Vuda
+Mamanuca - Malolo
+Nadi - Tikina == "Nadi"
+Northern Division - ADM1_NAME == "Northern Division"
+Others
+Suva - Tikina == "Suva"
+
+```{r}
+fiji_tik<-st_read(here("projected_data/Tikina/Fiji_tikina.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(area = as.numeric(st_area(.))) %>% 
+  group_by(TIKINA, ADM1_NAME) %>%
+  summarise(area = sum(area, na.rm = T)) %>% 
+  mutate(Area = case_when(TIKINA == "Suva" ~ "Suva",
+                          TIKINA == "Nadi" ~ "Nadi",
+                          ADM1_NAME == "Northern  Division" ~ "Northern Division",
+                          TIKINA == "Baravi" ~ "Coral Coast",
+                          TIKINA == "Nasigatoka" ~ "Coral Coast",
+                          TIKINA == "Cuvu" ~ "Coral Coast",
+                          TIKINA == "Malomalo" ~ "Coral Coast",
+                          TIKINA == "Vuda" ~ "Lautoka",
+                          TIKINA == "Malolo" ~ "Mamanuca"),
+         Area = ifelse(is.na(Area) == T, "Others", as.character(Area)))
+```
+
+
+```{r}
+fiji_tik_nutrients<-full_join(fiji_tik, visitor_nutrients_region2, by ="Area")
+```
+
+
+# Join hotel location with hotel room numbers
+
+```{r}
+hotel_loc<-readOGR("/home/kuempel/Fiji_sewage/raw_data/Tourism/Fiji_Hotels_Rooms.kml")
+
+hotel_loc<-hotel_loc %>% 
+  st_as_sf() %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(ID = as.numeric(description),
+         ID = ifelse(Name == "Mana Lagoon", 88,
+                     ifelse(Name == "Beachcomber Island Resort, Tai Is; Vuda", 70, as.numeric(ID)))) %>% 
+  dplyr::select(Name, ID, geometry)
+```
+
+```{r}
+hotel_rooms<-read.csv("/home/kuempel/Fiji_sewage/raw_data/Tourism/Hotel_num_rooms_Fiji.csv") 
+
+hotel_rooms$Num_persons <- as.numeric(gsub(",","",hotel_rooms$Num_persons))
+
+hotel_rooms<-hotel_rooms %>% 
+  mutate(Bures = replace_na(Bures, 0),
+         Rooms = replace_na(Rooms, 0),
+         Dorms = replace_na(Dorms, 0),
+         Cabins = replace_na(Cabins, 0),
+         Villas = replace_na(Villas, 0),
+         Lodges = replace_na(Lodges, 0),
+         Ensuite = replace_na(Ensuite, 0),
+         Bungalows = replace_na(Bungalows, 0),
+         Tents = replace_na(Tents, 0),
+         Suites = replace_na(Suites, 0),
+         Cottages = replace_na(Cottages, 0)) %>% 
+  mutate(Total_rooms = Bures + Rooms + Dorms + Cabins + Villas + Lodges + Ensuite + Bungalows + Tents + Suites + Cottages) %>% 
+  dplyr::select(Area, Hotel_Name, Total_rooms, Num_persons, ID)
+```
+
+
+From this info only 2 hotels are within the WWTP catchments
+
+Explore original hotel layer
+
+```{r}
+orig_hotels<-readOGR("/home/kuempel/Fiji_sewage/raw_data/Tourism/Fiji_Hotels.kmz") %>% 
+  st_as_sf() %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(ID = NA) %>% 
+  dplyr::select(Name, ID, geometry)
+```
+
+```{r}
+all_hotels<-rbind(hotel_loc, orig_hotels) %>% 
+  filter(!duplicated(geometry))
+```
+
+
+```{r}
+hotel_rooms_loc<-full_join(all_hotels, hotel_rooms, by = "ID") %>% 
+  filter(!is.na(Name) == T)
+```
+
+```{r}
+cor.test(hotel_rooms_loc$Num_persons, hotel_rooms_loc$Total_rooms, method = "pearson")
+```
+
+
+# Hotels per tikina
+
+```{r}
+tikina_hotels<-st_intersection(hotel_rooms_loc, fiji_tik)
+
+tikina_hotels_df<-tikina_hotels %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+write.csv(tikina_hotels_df, here("output_data/Tourism/All_hotels_by_tikina.csv"))
+
+tikina_hotels_rooms<-tikina_hotels %>% 
+  filter(!is.na(Total_rooms) == T)
+
+tikina_hotels_add<-tikina_hotels %>% 
+  filter(is.na(Total_rooms == T)) %>% 
+  dplyr::select(-area)
+
+```
+
+# Add in hotel rooms
+
+Here I separated out hotels that did not have room numbers then searched google to find room numbers. Now I add that data back in.
+
+I also want to remove any potential duplicate hotels
+
+Remove "The projects collective"
+
+```{r}
+room_search<-read.csv(here("raw_data/Tourism/Fiji_additional_rooms.csv")) %>% 
+  dplyr::select(-Notes, -X.1, -X) 
+
+tikina_add2<-tikina_hotels_add %>% 
+  filter(!Name == "The Projects Collective") %>% 
+  full_join(., room_search, by = c("Name", "ID", "Area", "Num_persons", "Area.1", "Hotel_Name", "TIKINA", "ADM1_NAME")) %>% 
+  mutate(Total_rooms = ifelse(is.na(Total_rooms.x) == T, Total_rooms.y, Total_rooms.x)) %>% 
+  dplyr::select(-Total_rooms.x, -Total_rooms.y) 
+
+```
+
+Join together and remove any potential duplicates
+
+DONE Remove duplicate Tubakula Baech Bungalows
+DONE Remove duplicate Dreamview Villas
+DONE Remove duplicate Fiji Palms Resort
+DONE Remove duplicate Funky Fish Beach
+DONE Remove duplicate Gold Coast Inn
+DONE Remove duplicate Koro Sun
+DONE Remove duplicate Musket Cove
+DONE Remove Ocean Studio Fiji
+DONE Remove Basilico Italian Restaurant at Radisson Blu Resort, Fiji
+DONE Remove Swimming Pool
+DONE Remove duplicates of The Terrace Apartments
+DONE Remove duplicate Tokoriki
+
+
+
+Check 	
+
+LEFT IN BUT NOT 100% SURE: Hibisucus duplicates???
+LEFT IN: Novotel Nadi vs Novotel Suva Lami Bay
+REMOVED ONE: Rendezvous Beach Resort, Uciwai, Nadi vs.Rendezvous Surf Camp Fiji
+REMOVED ONE: Sheraton Denarau Villas, Denarau Island, Nadi vs Sheraton Fiji Resort 
+LEFT IN: Victoria Hotel Fiji vs. Victoria Palms Hotel
+REMOVED ONE:Yadua Bay Resort vs. Yadua Bay Resort & Villas
+
+REMOVED ONE: Club Fiji Limited, Wailoaloa Beach, Nadi Bay AND Club Fiji Limited = are these the same??
+
+```{r}
+tikina_hotels <- rbind(tikina_hotels_rooms, tikina_add2) %>% 
+  filter(!Name == "Tubakula Beach Bungalows",
+         !Name == "Basilico Italian Restaurant at Radisson Blu Resort, Fiji",
+         !Name == "Ocean Studio Fiji",
+         !Name == "Dreamview Villas",
+         !Name == "Fiji Palms, Resort",
+         !Name == "Gold Coast Inn Fiji",
+         !Name == "Koro sun resort",
+         !Name == "Musket Cove Island Resort & Marina",
+       #  !Name == "The Terrace Apartments" & is.na(Total_rooms) == T,
+         !Name == "Tokoriki",
+         !Name == "Funky Fish Beach Resort",
+         !Name == "Rendezvous Surf Camp Fiji",
+         !Name == "Sheraton Fiji Resort",
+         !Name == "Yadua Bay Resort",
+         !Name == "Club Fiji",
+         !duplicated(geometry))
+
+# Manually remove duplicate Terrace Apartments
+
+terrace<-tikina_hotels %>% 
+  filter(Name == "The Terrace Apartments")
+
+terrace<-terrace[1,]
+
+tikina_hotels<-tikina_hotels %>% 
+  filter(!Name == "The Terrace Apartments")
+
+tikina_hotels<-rbind(tikina_hotels, terrace)
+
+st_write(tikina_hotels, here("output_data/Tourism/Final_hotel_room_map.shp"), append = F)
+
+
+
+#test<-tikina_hotels %>% 
+#  filter(Name %in% c("Hibiscus Apartments Fiji", "Hibiscus Residences", "Hibiscus Tabua Villa"))
+```
+
+# Hotels per area
+
+```{r}
+hotels_per_area<-tikina_hotels %>% 
+  group_by(Area.1) %>% 
+  summarise(Total_hotels = length(unique(Name))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+prop_hotels_tik<-tikina_hotels %>% 
+  group_by(TIKINA, Area.1) %>% 
+  summarise(Num_hotels = length(unique(Name))) %>% 
+  left_join(., hotels_per_area, by = "Area.1") %>% 
+  mutate(Prop_hotels = Num_hotels/Total_hotels) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) 
+
+test<-prop_hotels_tik %>% 
+  filter(Area.1 == "Coral Coast")
+```
+
+# Rooms per area
+```{r}
+rooms_area<-tikina_hotels %>% 
+  group_by(Area.1) %>% 
+  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+persons_area<-tikina_hotels %>% 
+  group_by(Area.1) %>% 
+  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+prop_occupancy_tik<- tikina_hotels %>% 
+  group_by(TIKINA, Area.1) %>% 
+  summarise(Tik_rooms = sum(Total_rooms, na.rm = T),
+            Tik_visitors = sum(Num_persons, na.rm = T)) %>% 
+  left_join(., rooms_area, by = "Area.1") %>% 
+  left_join(., persons_area, by = "Area.1") %>% 
+  mutate(Prop_rooms = Tik_rooms/Total_rooms,
+            Prop_visitors = Tik_visitors/Total_persons) %>% 
+  left_join(., prop_hotels_tik, by = c("TIKINA", "Area.1")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  rename(Area = Area.1)
+
+test<-prop_occupancy_tik %>% 
+  filter(Area == "Coral Coast")
+
+cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_visitors, method = "pearson") # highly positively correlated
+cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
+cor.test(prop_occupancy_tik$Prop_visitors, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
+```
+
+# For now I distribute based on number of hotels
+
+Seems to work now.
+
+```{r}
+tik_tourist_nutrients<-full_join(fiji_tik_nutrients, prop_occupancy_tik, by = c("TIKINA", "Area")) %>%
+  mutate(Tourist_N = Total_N * Prop_hotels,
+         Tourist_P = Total_P * Prop_hotels)
+
+test<-tik_tourist_nutrients %>% 
+  filter(Area == "Coral Coast")
+
+plot(tik_tourist_nutrients["Tourist_N"])
+plot(tik_tourist_nutrients["Tourist_P"])
+```
+
+
+# Treatment levels
+
+From Fiji National Watewater Report 2007
+
+"Most large hotels (>100 rooms) have sewage treatment plants which provide primary or secondary treatment"
+
+~15 large hotels, we estimate 16
+~25 medium-sized resorts (30-100 rooms), we estimate 27
+
+Smaller resorts (~65) and backpackers accomodations (1-30 rooms) usually have septic tanks - we estimate 97 of these
+
+To be conservative we assign large hotels secondary treatment, medium-sized resorts primary treatment and smaller resorts septic tank treatment for N and P
+
+Primary treatment = 10% removal for both N and P
+Secondary treatment = 40% for N and 45% for P 
+Septic system = 10% (same as primary treatment)
+
+***********Suva doesn't seem to come up here - need to fix this*************
+
+```{r}
+hotel_treatment<-tikina_hotels %>%
+  filter(!is.na(Total_rooms) == T) %>% 
+  mutate(treatment_level = case_when(Total_rooms>100 ~ "Secondary",
+                                     Total_rooms<=100 & Total_rooms>=30 ~ "Primary",
+                                     Total_rooms<30 ~ "Septic"))
+
+hotels_per_area2<-hotel_treatment %>% 
+  group_by(Area.1) %>% 
+  summarise(Total_hotels = length(unique(Name))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+tikina_hotels_treatment2<-hotel_treatment %>% 
+  group_by(Area.1) %>% 
+  summarise(Primary = length(which(treatment_level == "Primary")),
+            Secondary = length(which(treatment_level == "Secondary")),
+            Septic = length(which(treatment_level == "Septic"))) %>% 
+  left_join(., hotels_per_area2, by = "Area.1") %>% 
+  mutate(prop_primary = Primary/Total_hotels,
+         prop_secondary = Secondary/Total_hotels,
+         prop_septic = Septic/Total_hotels) %>% 
+  rename(Area = Area.1) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+tourist_treated<-tik_tourist_nutrients %>% 
+  left_join(., tikina_hotels_treatment2, by = "Area") %>% 
+  dplyr::select(TIKINA, Area, Tourist_N, Tourist_P, prop_primary, prop_secondary, prop_septic) %>% 
+  mutate(Primary_N = (Tourist_N * prop_primary) * 0.9,
+         Primary_P = (Tourist_P * prop_primary) * 0.9,
+         Secondary_N = (Tourist_N * prop_secondary) *0.6,
+         Secondary_P = (Tourist_P * prop_secondary)* 0.55,
+         Septic_N = (Tourist_N * prop_septic) *0.9,
+         Septic_P = (Tourist_P * prop_septic) * 0.9,
+         Connected_N = Primary_N + Secondary_N,
+         Connected_P = Primary_P + Secondary_P) 
+
+test<-tourist_treated %>% 
+  filter(Area == 'Coral Coast')
+```
+
+
+
+# Connected
+
+```{r}
+basin_nutrients<-tourist_treated %>% 
+  dplyr::select(TIKINA, Area, Connected_N, Connected_P, Septic_N, Septic_P) 
+
+basin_nutrients$area_tik <- as.numeric(st_area(basin_nutrients))
+
+```
+
+
+
+
+```{r}
+#basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp")) %>% 
+#  st_transform(., crs = t_crs) 
+
+#fiji_tik<-st_make_valid(fiji_tik)
+#basins12<-st_make_valid(basins12)
+
+#fiji_basins<-st_crop(basins12, fiji_tik)
+
+#st_write(fiji_basins, here("projected_data/Basins/Fiji_Basins12_albers.shp"))
+
+fiji_basins<-st_read(here("projected_data/Basins/Fiji_Basins12_albers.shp"))
+
+fiji_basins<-fiji_basins %>% 
+  dplyr::select(MAIN_BAS) %>% 
+  mutate(area_m2 = as.numeric(st_area(.))) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(area_m2 = sum(area_m2, na.rm = T))
+```
+
+```{r}
+tikina_area<-st_intersection(basin_nutrients, fiji_basins) %>% 
+  mutate(area_tik = as.numeric(st_area(.))) %>% 
+  group_by(TIKINA, Connected_N, Connected_P, Septic_N, Septic_P) %>% 
+  summarise(area_tik = sum(area_tik, na.rm = T))
+
+basin_area<-st_intersection(fiji_basins, basin_nutrients) %>% 
+  mutate(area_basin = as.numeric(st_area(.))) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(area_basin = sum(area_basin, na.rm = T))
+
+final_tourist_nutrients<-st_intersection(tikina_area, basin_area) %>% 
+  dplyr::select(TIKINA, Connected_N, Connected_P, Septic_N, Septic_P, area_tik, MAIN_BAS, area_basin) %>% 
+  mutate(basins_tik_area = as.numeric(st_area(.)),
+     prop_area = basins_tik_area/as.numeric(area_basin),
+     prop_area2 = basins_tik_area/area_tik,
+     connected_basin_N = Connected_N * prop_area2,
+     connected_basin_P = Connected_P * prop_area2,
+     septic_basin_N = Septic_N * prop_area2,
+     septic_basin_P = Septic_P * prop_area2)
+
+test3<-final_tourist_nutrients%>% 
+  #filter(MAIN_BAS == 5120081590)
+  filter(TIKINA == "Nadi")
+```
+
+
+
+```{r}
+final_basin_nutrients<- final_tourist_nutrients %>% 
+  dplyr::select(MAIN_BAS, connected_basin_N, connected_basin_P, septic_basin_N, septic_basin_P) %>% 
+  mutate(N = connected_basin_N + septic_basin_N,
+         P = connected_basin_P +septic_basin_P) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(N = sum(N, na.rm = T),
+            P = sum(P, na.rm = T))
+```
+
