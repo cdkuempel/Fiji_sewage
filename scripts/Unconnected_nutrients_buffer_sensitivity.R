@@ -9,14 +9,17 @@ library(rgdal)
 library(lwgeom)
 library(pbmcapply)
 library(fasterize)
-devtools::install_github("rspatial/raster")
+#devtools::install_github("rspatial/raster")
 library(raster)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 
 
 
 # STP watersheds
 
 stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
   mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
                       ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
   mutate(area = st_area(.)) %>% 
@@ -29,7 +32,8 @@ stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>%
 # River data
 
 rivers_proj<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
-rivers_proj<-st_transform(rivers_proj, st_crs(stp))
+rivers_proj<-st_transform(rivers_proj, crs=t_crs)
+st_crs(rivers_proj)<-t_crs
 
 # N and P pollution
 
@@ -64,6 +68,9 @@ pbmclapply(buff, create_buff, mc.cores = 5, mc.style = "ETA")
 rm(list=ls())
 gc()
 
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+
 # N and P pollution
 
 N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
@@ -87,7 +94,8 @@ fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>%
   summarise(area_km2 = sum(area_km2, na.rm = T))
 
 fiji_basins12<-fiji_basins12 %>% 
-  mutate(ID = seq(from = 1, to =nrow(fiji_basins12), 1))
+  mutate(ID = seq(from = 1, to =nrow(fiji_basins12), 1)) %>% 
+  st_transform(., crs = t_crs)
 
 
 # Change Buffer area to N and P pollution values
@@ -95,7 +103,6 @@ fiji_basins12<-fiji_basins12 %>%
 
 buffer_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
 
-buffer_list<-buffer_list[1:10]
 
 buffer_N_P<-function(x,
                      N_ras,
@@ -125,7 +132,7 @@ buffer_N_P<-function(x,
 
 pbmclapply(buffer_list, buffer_N_P, N_cell_septic, P_cell_septic, "septic", mc.cores = 2, mc.style = "ETA")
 
-pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.cores = 1, mc.style = "ETA")
+pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.cores = 2, mc.style = "ETA")
 
 
 # Add in no buffer value
