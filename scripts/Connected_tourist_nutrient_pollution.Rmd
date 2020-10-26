@@ -18,6 +18,8 @@ library(gdalUtils)
 library(tabularaster)
 library(rgdal)
 library(countrycode)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
 
 In this code we estimate the contribution of tourists to sewage pollution in Fiji.
@@ -183,6 +185,8 @@ visitor_nutrients_region<-visitor_nutrients %>%
          P_visitors_region = P_emissions_visitors * prop_visitors)
 ```
 
+
+
 # Surface water transport
 
 Determine what watersheds each STP is in
@@ -191,12 +195,12 @@ Determine what watersheds each STP is in
 stp_shp<-readOGR("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml") %>% 
   st_as_sf()
 
-stp_shp<-st_transform(stp_shp, "+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72 +towgs84=35.1728,-136.5713,36.9643,-1.371019,0.841969,4.718006,1.53700236005 +units=m +no_defs ")
+stp_shp<-st_transform(stp_shp, crs = t_crs)
 
-basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp"))
+basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  st_transform(., crs = t_crs)
 
 ```
-
 
 
 # Spatial distribute connections
@@ -243,14 +247,151 @@ visitor_nutrients_stp<-visitor_nutrients_region %>%
          Total_P_stp = P_visitors_connected * Prop_non_res2) %>% 
   group_by(Plant_Name) %>% 
   summarise(Total_N = sum(Total_N_stp, na.rm = T),
-            Total_P = sum(Total_P_stp, na.rm = T))
+            Total_P = sum(Total_P_stp, na.rm = T)) %>% 
+  mutate(ID = case_when(Plant_Name == "Kinoya"~ 2,
+                        Plant_Name ==  "Nadali"~ 3,
+                        Plant_Name == "Namara"~ 4,
+                        Plant_Name == "Natabua"~ 5,
+                        Plant_Name == "Navakai"~ 6,
+                        Plant_Name == "Olosara"~ 7,
+                        Plant_Name == "Pacific Harbor" ~ 1,
+                        Plant_Name == "Votua"~8)) %>% 
+  pivot_longer(., cols = c(Total_N, Total_P), names_to = "type",values_to = "nutrients") %>% 
+  mutate(type = case_when(type == "Total_N" ~"N",
+                          type == "Total_P" ~ "P"))
 
 
 ```
+
+# Treatment levels
 
 ```{r}
-write.csv(visitor_nutrients_stp, here("output_data/Sewage_plants/Connected_tourist_nutrients.csv"))
+nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+  mutate(ID = ifelse(STP == "ACS", NA,
+                     ifelse(STP == "Deuba", 1,
+                            ifelse(STP == "Kinoya", 2,
+                                   ifelse(STP == "Naboro", NA,
+                                          ifelse(STP == "Nadali", 3,
+                                                 ifelse(STP ==  "Namara", 4,
+                                                        ifelse(STP == "Lautoka", 5,
+                                                               ifelse(STP ==  "Navakai", 6,
+                                                                      ifelse(STP == "Olosara", 7,
+                                                                             ifelse(STP == "Ba", 8,
+                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))))
+
+tourism_stp<-left_join(visitor_nutrients_stp, nutri_removal, by = c("ID", "type")) %>% 
+  mutate(treated_nutrients = nutrients * (1-rm_eff))
+
 ```
+
+
+
+# Write csv
+```{r}
+write.csv(tourism_stp, here("output_data/Sewage_plants/Connected_tourist_nutrients.csv"))
+```
+
+# Unconnected tourists
+
+# Hotels
+
+```{r}
+hotels<-readOGR(here("raw_data/Tourism/Fiji_Hotels.kmz")) %>% 
+  st_as_sf() %>% 
+  st_transform(., crs = t_crs)
+
+hotels_df<-hotels %>% 
+  as.data.frame() %>% 
+  dplyr::select(Name)
+
+write.csv(hotels_df, here("raw_data/Tourism/Hotel_map_names.csv"))
+```
+
+# Map tourism by area
+
+```{r}
+visitor_nutrients_unconnected<-visitor_nutrients_region %>% 
+  mutate(N_visitors_unconnected = ifelse(Area == "Mamanuca", N_visitors_region, N_visitors_region * (1-prop_con)),
+         P_visitors_unconnected = ifelse(Area == "Mamanuca", P_visitors_region, P_visitors_region * (1-prop_con))) %>% 
+  dplyr::select(Country, Area, Total_visitors, Num_visitors, N_visitors_unconnected, P_visitors_unconnected) %>% 
+  group_by(Area) %>% 
+  summarise(All_visitors = sum(Num_visitors, na.rm = T),
+            N_total = sum(N_visitors_unconnected, na.rm = T),
+            P_total = sum(P_visitors_unconnected, na.rm = T))
+```
+
+
+# Tikina
+
+```{r}
+fiji_tik<-st_read(here("projected_data/Tikina/Fiji_tikina.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(TIKINA, ADM1_NAME) %>%
+  summarise(area = sum(area, na.rm = T))
+```
+
+# Hotels by Tikina
+
+Coral Coast - check
+Lautoka - Vuda
+Mamanuca - Malolo
+Nadi - Tikina == "Nadi"
+Northern Division - ADM1_NAME == "Northern Division"
+Others
+Suva - Tikina == "Suva"
+
+```{r}
+hotel_tik<-st_join(fiji_tik, hotels) %>% 
+  dplyr::select(TIKINA, ADM1_NAME, Name) %>% 
+  mutate(ID = 1) %>% 
+  group_by(TIKINA, ADM1_NAME) %>% 
+  summarise(count = sum(ID, na.rm = T)) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  mutate(Area = case_when(TIKINA == "Suva" ~ "Suva",
+                          TIKINA == "Nadi" ~ "Nadi",
+                          ADM1_NAME == "Northern  Division" ~ "Northern Division",
+                          TIKINA == "Baravi" ~ "Coral Coast",
+                          TIKINA == "Nasigatoka" ~ "Coral Coast",
+                          TIKINA == "Cuvu" ~ "Coral Coast",
+                          TIKINA == "Malomalo" ~ "Coral Coast",
+                          TIKINA == "Vuda" ~ "Lautoka",
+                          TIKINA == "Malolo" ~ "Mamanuca"),
+         Area = ifelse(is.na(Area) == T, "Others", as.character(Area)))
+  
+hotel_area<- hotel_tik %>% 
+  group_by(Area) %>% 
+  summarise(hotel_area = sum(count, na.rm = T))
+
+# This assumes that all hotels are the same size/capacity within each tikina which is not true
+
+hotel_tik2<-hotel_tik %>% 
+  left_join(., hotel_area, by = "Area") %>% 
+  mutate(prop_hotel = as.numeric(count)/as.numeric(hotel_area))
+```
+
+# Join to visitor information
+
+```{r}
+hotel_tik_visitor<-left_join(visitor_nutrients_unconnected, hotel_tik2, by = "Area") %>% 
+  mutate(visitor_tik = All_visitors * prop_hotel)
+```
+
+
+# Which tikinas have STP
+
+```{r}
+wwtp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(TREATMENT_) %>% 
+  summarise(area = sum(area)) %>% 
+  filter(!is.na(TREATMENT_) == T)
+
+stp_tik<-st_join(wwtp, fiji_tik)
+```
+
 
 
 
