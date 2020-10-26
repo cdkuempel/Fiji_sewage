@@ -1,0 +1,224 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "26/10/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(raster)
+library(here)
+library(sf)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Fiji
+
+```{r}
+fiji<-st_read(here("projected_data/Tikina/fji_proj.shp"))
+e<-extent(fiji)
+fiji_template<-fasterize::fasterize(fiji, )
+```
+
+# Precipitation
+
+Source: https://www.worldclim.org/data/worldclim21.html
+
+Each download is a “zip” file containing 12 GeoTiff (.tif) files, one for each month of the year (January is 1; December is 12).
+
+```{r}
+#precip_url<-"http://biogeo.ucdavis.edu/data/worldclim/v2.1/base/wc2.1_30s_prec.zip"
+#temp<-tempfile(tmpdir=here("raw_data/InVEST/Precipitation/WorldClim"), fileext=".zip")
+#download.file(precip_url, temp)
+#unzip(temp, exdir=mydir)
+#unlink(temp)
+```
+
+Annual average precipitation per cell
+
+```{r}
+precip_files<-list.files(path = here("raw_data/InVEST/Precipitation/WorldClim"), pattern = "wc2.1", full.names = T)
+precip_stack<-stack(precip_files)
+precip_annual<-calc(precip_stack, fun = mean, na.rm = T)
+
+writeRaster(precip_annual, here("output_data/InVEST/Precipitation/Annual_precipitation_WorldClim.tif"), overwrite = T)
+
+gdalUtils::gdalwarp(srcfile = here("output_data/InVEST/Precipitation/Annual_precipitation_WorldClim.tif"), dstfile = here("projected_data/InVEST/Annual_precipitation_WorldClim_proj.tif"), t_srs = t_crs)
+
+precip_annual<-raster(here("projected_data/InVEST/Annual_precipitation_WorldClim_proj.tif"))
+
+fiji_precip<-crop(precip_annual,e)
+
+writeRaster(fiji_precip, here("output_data/InVEST/Precipitation/Fiji_annual_precipitation_WorldClim.tif"), overwrite = T)
+```
+
+Wet season average precipitation per cell - November to April
+
+```{r}
+wet_files<-precip_files[c(11,12,1,2,3)]
+wet_stack<-stack(wet_files)
+wet_average<-calc(wet_stack, fun = mean, na.rm = T)
+
+writeRaster(wet_average, here("output_data/InVEST/Precipitation/Annual_wet_precipitation_WorldClim.tif"),overwrite = T)
+
+gdalUtils::gdalwarp(srcfile = here("output_data/InVEST/Precipitation/Annual_wet_precipitation_WorldClim.tif"), dstfile = here("projected_data/InVEST/Annual_wet_precipitation_WorldClim_proj.tif"), t_srs = t_crs)
+
+wet_average<-raster(here("projected_data/InVEST/Annual_wet_precipitation_WorldClim_proj.tif"))
+
+fiji_wet_precip<-crop(wet_average,e)
+
+writeRaster(fiji_wet_precip, here("output_data/InVEST/Precipitation/Fiji_wet_precipitation_WorldClim.tif"), overwrite = T)
+```
+
+
+Dry season average precipitation per cell - April to November
+
+```{r}
+dry_files<-precip_files[c(4,5,6,7,8,9,10)]
+dry_stack<-stack(dry_files)
+dry_average<-calc(dry_stack, fun = mean, na.rm = T)
+
+writeRaster(dry_average, here("output_data/InVEST/Precipitation/Annual_dry_precipitation_WorldClim.tif"), overwrite = T)
+
+gdalUtils::gdalwarp(srcfile = here("output_data/InVEST/Precipitation/Annual_dry_precipitation_WorldClim.tif"), dstfile = here("projected_data/InVEST/Annual_dry_precipitation_WorldClim_proj.tif"), t_srs = t_crs)
+
+dry_average<-raster(here("projected_data/InVEST/Annual_dry_precipitation_WorldClim_proj.tif"))
+
+fiji_dry_precip<-crop(dry_average,e)
+
+writeRaster(fiji_dry_precip, here("output_data/InVEST/Precipitation/Fiji_dry_precipitation_WorldClim.tif"))
+```
+
+# GLOBIO Land use
+
+```{r}
+globio<-raster(here("raw_data/InVEST/Globio4_landuse_10sec_2015.tif"))
+
+gdalUtils::gdalwarp(srcfile = here("raw_data/InVEST/Globio4_landuse_10sec_2015.tif"), dstfile = here("projected_data/InVEST/Globio4_landuse_10sec_2015_proj.tif"), t_srs = t_crs)
+
+globio<-raster(here("projected_data/InVEST/Globio4_landuse_10sec_2015_proj.tif"))
+```
+
+```{r}
+fiji_globio<-crop(globio, e)
+
+writeRaster(fiji_globio, here("output_data/InVEST/Land_use/Fiji_globio.tif"))
+
+test<-rasterToPoints(fiji_globio) %>% 
+  as.data.frame()
+```
+
+
+# Digital Elevation Model
+
+```{r}
+dem<-raster(here("raw_data/InVEST/DEM/DEM_melanesia.tif"))
+
+gdalUtils::gdalwarp(srcfile = here("raw_data/InVEST/DEM/DEM_melanesia.tif"), dstfile = here("projected_data/InVEST/DEM_melanesia_proj.tif"), t_srs = t_crs, overwrite = T)
+
+dem<-raster(here("projected_data/InVEST/DEM_melanesia_proj.tif"))
+
+fiji_dem<-crop(dem, e)
+
+writeRaster(fiji_dem, here("output_data/InVEST/DEM/Fiji_dem.tif"), overwrite = T)
+```
+
+
+
+# Resample all layers to be 100 m resolution
+
+```{r}
+ras_template<-raster(resolution = c(100,100), vals = NA, xmn = -327489.2 , xmx = 183539.9 , ymn = -452438.6 , ymx =502517.6, crs = t_crs)
+
+```
+
+```{r}
+precip_resample<-resample(fiji_precip, ras_template, method = "bilinear")
+```
+
+```{r}
+lu_resample<-resample(fiji_globio, ras_template, method = "ngb")
+```
+
+```{r}
+dem_resample<-aggregate(fiji_dem, ras_template, method = "bilinear")
+```
+
+
+```{r}
+test<-stack(precip_resample, lu_resample, dem_resample)
+
+writeRaster(precip_resample, here("output_data/InVEST/Precipitation/Fiji_precipitation_WorldClim_100m.tif"))
+writeRaster(lu_resample, here("output_data/InVEST/Land_use/Fiji_globio_100m.tif"))
+writeRaster(precip_resample, here("output_data/InVEST/DEM/Fiji_dem_100m.tif"))
+```
+
+# Biophysical table
+
+Nutrients in each land cover type
+
+Calculate N and P loads per land class type
+
+```{r}
+septic_N<-raster(here("output_data/Nutrients/Septic_N.tif"))
+septic_P<-raster(here("output_data/Nutrients/Septic_P.tif"))
+direct_N<-raster(here("output_data/Nutrients/Direct_N.tif"))
+direct_P<-raster(here("output_data/Nutrients/Direct_P.tif"))
+
+septic_N<-extend(septic_N, direct_N)
+septic_P<-extend(septic_P, direct_P)
+
+N_stack<-stack(septic_N, direct_N)
+nonpoint_N<-calc(N_stack, fun = sum, na.rm = T)
+P_stack<-stack(septic_P, direct_P)
+nonpoint_P<-calc(P_stack, fun = sum, na.rm = T)
+
+nonpoint_N_resample<-resample(nonpoint_N, ras_template, method = "bilinear")
+nonpoint_P_resample<-resample(nonpoint_P, ras_template, method = "bilinear")
+```
+
+Note 1: Loads are the sources of nutrients associated with each LULC class. If you want to represent different levels of fertilizer application, you will need to create separate LULC classes, for example one class called “crops - high fertilizer use” a separate class called “crops - low fertilizer use” etc.
+
+Note 2: Load values may be expressed either as the amount of nutrient applied (e.g. fertilizer, livestock waste, atmospheric deposition); or as “extensive” measures of contaminants, which are empirical values representing the contribution of a parcel to the nutrient budget (e.g. nutrient export running off urban areas, crops, etc.) In the latter case, the load should be corrected for the nutrient retention from downstream pixels of the same LULC. For example, if the measured (or empirically derived) export value for forest is 3 kg.ha-1.yr-1 and the retention efficiency is 0.8, users should enter 15(kg.ha-1.yr-1) in the n_load column of the biophysical table; the model will calculate the nutrient running off the forest pixel as 15*(1-0.8) = 3 kg.ha-1.yr-1.
+
+100 x 100 m = 1 ha
+
+```{r}
+lu_df<-tabularaster::as_tibble(lu_resample, cell = T, value = T) %>% 
+  rename(lu = cellvalue)
+nonpoint_N_df<-tabularaster::as_tibble(nonpoint_N_resample, cell = T, value = T) %>% 
+  rename(N = cellvalue)
+nonpoint_P_df<-tabularaster::as_tibble(nonpoint_P_resample, cell = T, value = T) %>% 
+  rename(P = cellvalue)
+
+land_nutri<-full_join(lu_df, nonpoint_N_df, by = "cellindex") %>% 
+  full_join(., nonpoint_P_df, by = "cellindex")
+
+# THere is no 0 land use???
+
+test<-land_nutri %>% 
+  mutate(ha = 1) %>% 
+  group_by(lu) %>% 
+  summarise(total_ha = sum(ha, na.rm = T),
+            emp_load_n = sum(N,na.rm = T), # Nutrients are in kg/100 m and need to be in kg/ha
+            emp_load_p = sum(P,na.rm = T)) %>% 
+  filter(emp_load_n >0) %>% 
+  mutate(eff_n = case_when(lu == 1 ~ 0.05,
+                           lu == 2 ~ 0.25,
+                           lu == 3 ~ 0.1,
+                           lu == 4 ~ 0.25,
+                           lu == 6 ~ 0.6,
+                           lu == 101 ~ 0.8,
+                           lu == 102 ~ 0.8),
+         n_kg_ha = emp_load_n/total_ha,
+         p_kg_ha = emp_load_p/total_ha,
+         load_n = n_kg_ha/(1-eff_n),
+         load_p = p_kg_ha/(1-eff_n))
+```
+
