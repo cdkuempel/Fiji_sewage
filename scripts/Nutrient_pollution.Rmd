@@ -324,7 +324,7 @@ Sum cells within watersheds
 septic_basin_N<-raster::extract(septic_N_buff, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
 septic_basin_P<-raster::extract(septic_P_buff, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
 
-Lidirect_basin_N<-raster::extract(direct_N_buff, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+direct_basin_N<-raster::extract(direct_N_buff, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
 direct_basin_P<-raster::extract(direct_P_buff, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
 ```
 
