@@ -29,6 +29,8 @@ library(units)
 library(lwgeom)
 
 source(here("scripts/plume_functions.R"))
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
 
 
@@ -45,13 +47,14 @@ rivers<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
 # Read in data and calculate area
 basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
 
-basins12_proj<-st_transform(basins12, st_crs(rivers))
+basins12_proj<-st_transform(basins12, crs=t_crs) %>% 
+  dplyr::select(HYBAS_ID, NEXT_DOWN, MAIN_BAS)
 
 #st_write(basins12_proj, here("projected_data/Basins/AllBasins12.shp"))
 
 #basins12_proj<-st_read(here("projected_data/Basins/AllBasins12.shp"))
 
-rivers_proj<-st_transform(rivers, st_crs(basins12))
+rivers_proj<-st_transform(rivers, crs = t_crs)
 ```
 
 # Pourpoints
@@ -63,7 +66,8 @@ Here is the new method I should use: https://gis.stackexchange.com/questions/251
 # Read in data
 sub_fiji_rivers<- rivers_proj %>% 
   filter(NEXT_DOWN == 0) %>% 
-  st_cast(., "LINESTRING")
+  st_cast(., "LINESTRING") %>% 
+  filter(!duplicated(HYRIV_ID))
 
 
 #If you only want the endpoints, then st_line_sample is what you are looking for:
@@ -72,25 +76,32 @@ pnts<-st_endpoint(sub_fiji_rivers)
 
 pnts_xy<-st_coordinates(pnts) 
 
-data_per_river<-st_join(sub_fiji_rivers,basins12)
-data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
+data_per_river<-cbind(sub_fiji_rivers, pnts_xy) %>% 
+  rename(pp_x = X,
+         pp_y = Y) %>% 
+  dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, dis_m3_pyr, pp_x, pp_y) %>% 
+  rename(riv_dis = dis_m3_pyr)
 
-data_per_river<-st_transform(data_per_river, st_crs(rivers)) %>% 
-  rename(riv_dis = dis_m3_pyr.x,
-         bas_dis = dis_m3_pyr.y)
+data_per_river<-st_join(data_per_river,basins12_proj)
 
-pnts<-st_transform(pnts, st_crs(rivers))
+#data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
 
-pb <- txtProgressBar(min = 0, max = nrow(data_per_river), style = 3) 
-pour_points<-list()
-for (i in 1:nrow(data_per_river)){
-  setTxtProgressBar(pb, i)
-  points_line<- st_cast(data_per_river[i,], "POINT")
-  pour_points[[i]]<- points_line[nrow(points_line),]
-  data_per_river[i,"pp_x"]<-extent(pour_points[[i]])[1]
-  data_per_river[i,"pp_y"]<-extent(pour_points[[i]])[3]
+#data_per_river<-st_transform(data_per_river, st_crs(rivers)) %>% 
+#  rename(riv_dis = dis_m3_pyr.x,
+#         bas_dis = dis_m3_pyr.y)
+
+#pnts<-st_transform(pnts, st_crs(rivers))
+
+#pb <- txtProgressBar(min = 0, max = nrow(data_per_river), style = 3) 
+#pour_points<-list()
+#for (i in 1:nrow(data_per_river)){
+#  setTxtProgressBar(pb, i)
+#  points_line<- st_cast(data_per_river[i,], "POINT")
+#  pour_points[[i]]<- points_line[nrow(points_line),]
+#  data_per_river[i,"pp_x"]<-extent(pour_points[[i]])[1]
+#  data_per_river[i,"pp_y"]<-extent(pour_points[[i]])[3]
   
-}
+#}
 
 ```
 
@@ -114,11 +125,11 @@ We distributed the sediment export across all points weighted by the mean annual
 ```{r}
 septic_basins_nutri_all<-left_join(data_per_river, septic_basins_nutri, by = c("MAIN_BAS")) %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry, MAIN_BAS, riv_dis)
+  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
 
 direct_basins_nutri_all<-left_join(data_per_river, direct_basins_nutri, by = c("MAIN_BAS")) %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry, MAIN_BAS, riv_dis)
+  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
 
 septic_basins_nutri_dist<-septic_basins_nutri_all %>% 
   group_by(MAIN_BAS) %>% 
@@ -154,7 +165,7 @@ pour_points<-pour_points %>%
          P = P_pourpoint) %>% 
   filter(!is.na(N) == T)
 
-st_crs(pour_points)<-"+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72 +units=m +no_defs "
+st_crs(pour_points)<-t_crs
 
 st_write(pour_points, here("output_data/Rivers/Fiji_septic_pourpoints.shp"), delete_layer = T)
 ```
@@ -173,13 +184,7 @@ st_write(pour_points, here("output_data/Rivers/Fiji_septic_pourpoints.shp"), del
 Avoid reprojecting ocean if possible - takes awhile
 
 ```{r}
-#ocean_raster<-raster(here("raw_data/Global/oceans_moll.tif"))
-
-#ocean_raster<-projectRaster(ocean_raster, crs = as.character(crs(stp_pp_proj)))
-
-#writeRaster(ocean_raster, here("projected_data/oceans_moll_proj.tif"))
-
-ocean_raster<-raster(here("projected_data/oceans_moll_proj.tif"))
+ocean_raster<-raster(here("output_data/Rivers/ocean_raster_1km.tif"))
 ```
 
 
@@ -196,7 +201,7 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   as_Spatial
 
   point_list<-split(pour_points,as.character(pour_points@data$ID))
-  re = pbmcapply::pbmclapply(point_list, N_plume, ocean_raster, 80000, c(1110,894), 90000, mc.cores = 10)
+  re = pbmcapply::pbmclapply(point_list, N_plume, ocean_raster, 80000, c(1000,1000), 90000, mc.cores = 10)
   #Check to see if we should change buffer value
   
   # Set extent for all outputs to the max extent needed, e.g., newextent
@@ -211,6 +216,8 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   # Add all rasters in the group together + mask out land areas is desired
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
+  
+  test<-log10(sed_plume_merge +1)
   
   writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_septic_N_plumes.tif")), overwrite = T)
 
@@ -232,6 +239,9 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
   
+  test<-log10(sed_plume_merge +1)
+
+  
   writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_septic_P_plumes.tif")), overwrite = T)
 
 ```
@@ -246,7 +256,7 @@ pour_points<-pour_points %>%
          P = P_pourpoint) %>% 
   filter(!is.na(N) == T)
 
-st_crs(pour_points)<-"+proj=tmerc +lat_0=-17 +lon_0=178.75 +k=0.9998548 +x_0=2000000 +y_0=4000000 +ellps=WGS72 +units=m +no_defs "
+st_crs(pour_points)<-t_crs
 
 st_write(pour_points, here("output_data/Rivers/Fiji_direct_pourpoints.shp"), delete_layer = T)
 ```
@@ -264,7 +274,7 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   as_Spatial
 
   point_list<-split(pour_points,as.character(pour_points@data$ID))
-  re = pbmcapply::pbmclapply(point_list, N_plume, ocean_raster, 80000, c(1110,894), 90000, mc.cores = 10)
+  re = pbmcapply::pbmclapply(point_list, N_plume, ocean_raster, 80000, c(1000,1000), 90000, mc.cores = 10)
   #Check to see if we should change buffer value
   
   # Set extent for all outputs to the max extent needed, e.g., newextent
@@ -280,7 +290,7 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
   
-  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_direct_N_plumes.tif")))
+  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_direct_N_plumes.tif")), overwrite =T)
 
 ```
 
@@ -300,6 +310,6 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   sed_plume_merge = Reduce("+", re_ext) 
   sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
   
-  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_direct_P_plumes.tif")))
+  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_direct_P_plumes.tif")),overwrite = T)
 
 ```
