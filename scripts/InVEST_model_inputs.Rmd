@@ -23,7 +23,7 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 ```{r}
 fiji<-st_read(here("projected_data/Tikina/fji_proj.shp"))
 e<-extent(fiji)
-fiji_template<-fasterize::fasterize(fiji, )
+#fiji_template<-fasterize::fasterize(fiji, )
 ```
 
 # Precipitation
@@ -53,7 +53,7 @@ gdalUtils::gdalwarp(srcfile = here("output_data/InVEST/Precipitation/Annual_prec
 
 precip_annual<-raster(here("projected_data/InVEST/Annual_precipitation_WorldClim_proj.tif"))
 
-fiji_precip<-crop(precip_annual,e)
+fiji_precip<-crop(precip_annual,e, snap = "near")
 
 writeRaster(fiji_precip, here("output_data/InVEST/Precipitation/Fiji_annual_precipitation_WorldClim.tif"), overwrite = T)
 ```
@@ -71,7 +71,7 @@ gdalUtils::gdalwarp(srcfile = here("output_data/InVEST/Precipitation/Annual_wet_
 
 wet_average<-raster(here("projected_data/InVEST/Annual_wet_precipitation_WorldClim_proj.tif"))
 
-fiji_wet_precip<-crop(wet_average,e)
+fiji_wet_precip<-crop(wet_average,e, snap = "near")
 
 writeRaster(fiji_wet_precip, here("output_data/InVEST/Precipitation/Fiji_wet_precipitation_WorldClim.tif"), overwrite = T)
 ```
@@ -90,7 +90,7 @@ gdalUtils::gdalwarp(srcfile = here("output_data/InVEST/Precipitation/Annual_dry_
 
 dry_average<-raster(here("projected_data/InVEST/Annual_dry_precipitation_WorldClim_proj.tif"))
 
-fiji_dry_precip<-crop(dry_average,e)
+fiji_dry_precip<-crop(dry_average,e, snap = "near")
 
 writeRaster(fiji_dry_precip, here("output_data/InVEST/Precipitation/Fiji_dry_precipitation_WorldClim.tif"))
 ```
@@ -98,20 +98,36 @@ writeRaster(fiji_dry_precip, here("output_data/InVEST/Precipitation/Fiji_dry_pre
 # GLOBIO Land use
 
 ```{r}
-globio<-raster(here("raw_data/InVEST/Globio4_landuse_10sec_2015.tif"))
+#globio<-raster(here("raw_data/InVEST/Land_use/Globio4_landuse_10sec_2015.tif"))
 
-gdalUtils::gdalwarp(srcfile = here("raw_data/InVEST/Globio4_landuse_10sec_2015.tif"), dstfile = here("projected_data/InVEST/Globio4_landuse_10sec_2015_proj.tif"), t_srs = t_crs)
+#globio1<-raster(here("raw_data/InVEST/Land_use/Globio2017.tif"))
+#globio2<-raster(here("raw_data/InVEST/Land_use/Globio2017_2.tif"))
+
+#test1<-projectRaster(globio1, crs = t_crs)
+#test2<-projectRaster(globio2, crs = t_crs)
+
+#test<-list(globio1, globio2)
+#test2<-do.call(merge, test)
+
+#test_df<-rasterToPoints(globio1, crs = t_crs) %>% 
+#  as.data.frame()
+
+#test3<-projectRaster(test2, crs = t_crs)
+
+#gdalUtils::gdalwarp(srcfile = here("raw_data/InVEST/Globio4_landuse_10sec_2015.tif"), dstfile = here("projected_data/InVEST/Globio4_landuse_10sec_2015_proj.tif"), t_srs = t_crs)
 
 globio<-raster(here("projected_data/InVEST/Globio4_landuse_10sec_2015_proj.tif"))
 ```
 
 ```{r}
-fiji_globio<-crop(globio, e)
+#fiji_globio<-crop(globio, e, snap = "near")
 
-writeRaster(fiji_globio, here("output_data/InVEST/Land_use/Fiji_globio.tif"))
+#writeRaster(fiji_globio, here("output_data/InVEST/Land_use/Fiji_globio.tif"), overwrite = T)
 
-test<-rasterToPoints(fiji_globio) %>% 
-  as.data.frame()
+#test<-rasterToPoints(fiji_globio) %>% 
+#  as.data.frame()
+
+fiji_globio<-raster(here("output_data/InVEST/Land_use/Fiji_globio.tif"))
 ```
 
 
@@ -124,7 +140,7 @@ gdalUtils::gdalwarp(srcfile = here("raw_data/InVEST/DEM/DEM_melanesia.tif"), dst
 
 dem<-raster(here("projected_data/InVEST/DEM_melanesia_proj.tif"))
 
-fiji_dem<-crop(dem, e)
+fiji_dem<-crop(dem, e, snap = "near")
 
 writeRaster(fiji_dem, here("output_data/InVEST/DEM/Fiji_dem.tif"), overwrite = T)
 ```
@@ -181,6 +197,12 @@ nonpoint_P<-calc(P_stack, fun = sum, na.rm = T)
 
 nonpoint_N_resample<-resample(nonpoint_N, ras_template, method = "bilinear")
 nonpoint_P_resample<-resample(nonpoint_P, ras_template, method = "bilinear")
+
+writeRaster(nonpoint_N_resample, here("output_data/InVEST/Nutrients/Fiji_nonpoint_N_100m.tif"), overwrite = T)
+writeRaster(nonpoint_P_resample, here("output_data/InVEST/Nutrients/Fiji_nonpoint_P_100m.tif"), overwrite = T)
+
+nonpoint_N_resample<-raster(here("output_data/InVEST/Nutrients/Fiji_nonpoint_N_100m.tif"))
+nonpoint_P_resample<-raster(here("output_data/InVEST/Nutrients/Fiji_nonpoint_P_100m.tif"))
 ```
 
 Note 1: Loads are the sources of nutrients associated with each LULC class. If you want to represent different levels of fertilizer application, you will need to create separate LULC classes, for example one class called “crops - high fertilizer use” a separate class called “crops - low fertilizer use” etc.
@@ -189,20 +211,97 @@ Note 2: Load values may be expressed either as the amount of nutrient applied (e
 
 100 x 100 m = 1 ha
 
-```{r}
-lu_df<-tabularaster::as_tibble(lu_resample, cell = T, value = T) %>% 
-  rename(lu = cellvalue)
-nonpoint_N_df<-tabularaster::as_tibble(nonpoint_N_resample, cell = T, value = T) %>% 
-  rename(N = cellvalue)
-nonpoint_P_df<-tabularaster::as_tibble(nonpoint_P_resample, cell = T, value = T) %>% 
-  rename(P = cellvalue)
+# Fill in missing values for land use raster
 
-land_nutri<-full_join(lu_df, nonpoint_N_df, by = "cellindex") %>% 
-  full_join(., nonpoint_P_df, by = "cellindex")
+```{r}
+#lu_resample2<-lu_resample
+#lu_resample2[lu_resample2==0]<-NA
+
+#writeRaster(lu_resample2, here("output_data/InVEST/Land_use/Fiji_globio_100m_NAzeros.tif"))
+
+#test_template<-
+
+#test_resample<-resample(fiji_globio, ras_template, method = "ngb")
+
+lu_resample2<-raster(here("output_data/InVEST/Land_use/Fiji_globio_100m_NAzeros.tif"))
+lu_resample_values<-readAll(lu_resample2)
+
+```
+
+```{r}
+# create sample points and add them to the plot
+lu_xy<-rasterToPoints(lu_resample_values) %>% 
+  as.data.frame()
+N_xy<-rasterToPoints(nonpoint_N_resample) %>% 
+  as.data.frame()
+
+lu_N_xy<-full_join(lu_xy, N_xy, by = c("x", "y")) %>% 
+  filter(is.na(Fiji_globio_100m_NAzeros) == T & is.na(Fiji_nonpoint_N_100m) == F,
+         Fiji_nonpoint_N_100m>0)
+
+lu_N_xy2<-full_join(lu_xy, N_xy, by = c("x", "y")) %>% 
+  filter(!x %in% lu_N_xy$x,
+         !y %in% lu_N_xy$y)
+
+xy<- lu_N_xy %>% 
+  dplyr::select(x, y)
+
+# use normal extract function to show that NAs are extracted for some points
+extracted = extract(x = lu_resample_values, y = xy)
+
+
+# then take the raster value with lowest distance to point AND non-NA value in the raster
+sampled = apply(X = xy, MARGIN = 1, FUN = function(xy) lu_resample_values@data@values[which.min(replace(distanceFromPoints(lu_resample_values, xy), is.na(lu_resample_values), NA))])
+
+final_sampled<-c()
+
+for(i in 1:length(sampled)){
+  sub<-sampled[[i]]
+  
+  if(length(sub)>1){
+    sub2<-sub[1]
+  }else{
+    sub2<-sub
+  }
+  
+  final_sampled<-c(final_sampled, sub2)
+  }
+
+
+sample_points<-cbind(xy, extracted, final_sampled) %>% 
+  dplyr::select(x,y,final_sampled) %>% 
+  rename(Fiji_globio_100m_NAzeros = final_sampled)
+
+lu_filled<-lu_N_xy %>% 
+  dplyr::select(-Fiji_nonpoint_N_100m) %>% 
+  rbind(., sample_points)
+
+lu_filled_ras<-rasterFromXYZ(lu_filled, crs = t_crs)
+
+writeRaster(lu_filled_ras, here("output_data/InVEST/Land_use/Fiji_globio_100m_filled.tif"))
+write.csv(lu_filled, here("output_data/InVEST/Land_use/Fiji_globio_100m_filled.csv"))
+
+```
+
+Assemble table
+```{r}
+lu_df<-rasterToPoints(lu_filled_ras) %>% 
+  as.data.frame() %>% 
+  rename(lu = Fiji_globio_100m_NAzeros)
+nonpoint_N_df<-rasterToPoints(nonpoint_N_resample) %>% 
+  as.data.frame() %>% 
+  rename(N = Fiji_nonpoint_N_100m)
+nonpoint_P_df<-rasterToPoints(nonpoint_P_resample) %>% 
+  as.data.frame() %>% 
+  rename(P = Fiji_nonpoint_P_100m)
+
+
+land_nutri<-full_join(lu_df, nonpoint_N_df, by = c("x", "y")) %>% 
+  full_join(., nonpoint_P_df, by = c("x", "y"))
 
 # THere is no 0 land use???
 
-test<-land_nutri %>% 
+bio_table<-land_nutri %>% 
   mutate(ha = 1) %>% 
   group_by(lu) %>% 
   summarise(total_ha = sum(ha, na.rm = T),
@@ -220,5 +319,7 @@ test<-land_nutri %>%
          p_kg_ha = emp_load_p/total_ha,
          load_n = n_kg_ha/(1-eff_n),
          load_p = p_kg_ha/(1-eff_n))
+
+write.csv(bio_table, here("output_data/InVEST/Biophysical_table.csv"))
 ```
 
