@@ -267,7 +267,10 @@ for(i in 1:length(sampled)){
   final_sampled<-c(final_sampled, sub2)
   }
 
+```
 
+This bit takes awhile - avoid if possible
+```{r}
 sample_points<-cbind(xy, extracted, final_sampled) %>% 
   dplyr::select(x,y,final_sampled) %>% 
   rename(Fiji_globio_100m_NAzeros = final_sampled)
@@ -280,8 +283,8 @@ lu_filled_ras<-rasterFromXYZ(lu_filled, crs = t_crs)
 
 writeRaster(lu_filled_ras, here("output_data/InVEST/Land_use/Fiji_globio_100m_filled.tif"))
 write.csv(lu_filled, here("output_data/InVEST/Land_use/Fiji_globio_100m_filled.csv"))
-
 ```
+
 
 Assemble table
 ```{r}
