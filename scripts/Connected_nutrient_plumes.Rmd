@@ -206,9 +206,9 @@ ocean_ras[ocean_ras == 1]<-0
 ocean_ras[is.na(ocean_ras) == T]<-1
 ocean_ras[ocean_ras == 0]<-NA
 
-writeRaster(ocean_ras, here("output_data/Rivers/ocean_raster_1km.tif"))
+writeRaster(ocean_ras, here("output_data/Rivers/ocean_raster_1km.tif"), overwrite =T)
 
-ocean_raster<-raster(here("output_data/Rivers/ocean_raster_1km.tif"))
+ocean_raster<-raster(here("output_data/Rivers/ocean_raster_1km.tif"), overwrite = T)
 ```
 
 
@@ -245,6 +245,12 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_connected_N_plumes.tif")), overwrite = TRUE, options=c("compress=deflate","tiled=yes","num_threads=6")) 
 
 
+  for(i in 1:length(re_ext)){
+    sub<-re_ext[[i]]
+    sub_name<-point_list[[i]]
+    name<-sub_name@data$Name
+    writeRaster(sub, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/plumes/",name,"_plume.tif"),overwrite = T)
+  }
 ```
 
 ```{r}
