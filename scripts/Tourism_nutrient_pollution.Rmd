@@ -25,8 +25,6 @@ options(scipen = 999)
 
 # Calculate Nutrients from tourists
 
-
-
 In this code we estimate the contribution of tourists to sewage pollution in Fiji.
 
 # Visitor Arrivals by country 2018
@@ -274,8 +272,6 @@ hotel_rooms<-hotel_rooms %>%
   dplyr::select(Area, Hotel_Name, Total_rooms, Num_persons, ID)
 ```
 
-
-From this info only 2 hotels are within the WWTP catchments
 
 Explore original hotel layer
 
