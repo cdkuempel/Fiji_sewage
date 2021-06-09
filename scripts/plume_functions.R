@@ -1,6 +1,6 @@
 #pp_sf<-point_list[[1]]
 #buffer_value<-80000
-#resolution_raster<-c(30.58452,30.58452)
+#resolution_raster<-c(1000,1000)
 #searchdistance<-90000
 
 N_plume<-function(pp_sf,#list of pour points
