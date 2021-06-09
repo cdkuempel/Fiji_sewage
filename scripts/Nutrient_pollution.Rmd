@@ -48,6 +48,8 @@ N_excretion_human<- Protein_intake*0.13
 
 #g/person/day assuming 13% nitrogen content of protein- This estimate is slightly lower than using the GDP_ppp estimate. Value from Wang et al. 2019 and Jönsson H., Richert Stintzing A., Vinnerås B. & Salomon E. Guidelines on use of urine and faeces in crop production (Stockholm Environment Institute, SE-103 14 Stockholm, Sweden, 2004).
 
+#****Check about using 80% N lost in urine and 17% in faeces???#
+
 N_emissions_human<- 0.365*N_excretion_human #kg/person/year
 ```
 
@@ -75,8 +77,6 @@ writeRaster(P_cell, here("output_data/Nutrients/Fiji_P_per_cell.tif"), overwrite
 N_cell<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
 P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
 ```
-
-
 
 If there was no sewage treatment - we estimate the N and P emissions are thus
 
@@ -260,6 +260,41 @@ writeRaster(septic_N_rm,here("output_data/Nutrients/Septic_N.tif"),overwrite = T
 writeRaster(septic_P_rm,here("output_data/Nutrients/Septic_P.tif"),overwrite = T)
 writeRaster(direct_N,here("output_data/Nutrients/Direct_N.tif"),overwrite = T)
 writeRaster(direct_P,here("output_data/Nutrients/Direct_P.tif"),overwrite = T)
+```
+
+```{r}
+septic_N<-raster(here("output_data/Nutrients/Septic_N.tif"))
+direct_N<-raster(here("output_data/Nutrients/Direct_N.tif"))
+
+septic_P<-raster(here("output_data/Nutrients/Septic_P.tif"))
+direct_P<-raster(here("output_data/Nutrients/Direct_P.tif"))
+
+direct_N2<-resample(direct_N, septic_N, method = "ngb")
+direct_P2<-resample(direct_P, septic_P, method = "ngb")
+
+septic_N[is.na(septic_N) == T]<-0
+direct_N2[is.na(direct_N2) == T]<-0
+
+N<-septic_N + direct_N2
+
+septic_P[is.na(septic_P) == T]<-0
+direct_P2[is.na(direct_P2) == T]<-0
+
+P<-septic_P + direct_P2
+
+cellStats(N, stat = "sum", na.rm = T)
+
+N2<-N
+N2[N2 == 0]<-NA
+
+P2<-P
+P2[P2==0]<-NA
+
+writeRaster(N, here("output_data/Nutrients/Total_N_unconnected.tif"),overwrite = T)
+writeRaster(N2, here("output_data/Nutrients/Total_N_unconnected_NA.tif"),overwrite = T)
+writeRaster(P, here("output_data/Nutrients/Total_P_unconnected.tif"),overwrite = T)
+writeRaster(P2, here("output_data/Nutrients/Total_P_unconnected_NA.tif"),overwrite = T)
+
 ```
 
 # Rasterize buffer
