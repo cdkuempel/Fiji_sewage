@@ -53,7 +53,6 @@ https://data.humdata.org/dataset/fiji-high-resolution-population-density-maps-de
 
 This takes quite a long time - once created load in projected raster only
 
-
 ```{r}
 pop_ras_proj<-raster(here("projected_data/Population/population_fji_albers.tif"))
 
@@ -159,10 +158,12 @@ pop_check<- stp %>%
   full_join(., reported_conn, by = "ID") %>% 
   dplyr::select(STP, STP_name, stp_pop, Pop_connected) %>% 
   rename(estimated = stp_pop,
-         reported = Pop_connected)
+         reported = Pop_connected,
+         diff = reported - estimated)
 
-write.csv(here("output_data/Sewage_plants/STP_population_check.csv"))
+write.csv(pop_check,here("output_data/Sewage_plants/STP_population_check.csv"))
 ```
+
 
 # Septic population
 
@@ -170,10 +171,12 @@ Source: Fiji liquid waste management strategy and action plan 2007
 
 40% of the population uses septic systems
 
+
+*******How was this urban layer created??********
 ```{r}
 urban<-raster(here("projected_data/Population/Fiji_urban.tif"))
 urban<-projectRaster(urban, crs = t_crs)
-urban[urban>0]<-1
+#urban[urban>0]<-1
 ```
 
 ```{r}
@@ -188,7 +191,8 @@ stp_df<-rasterToPoints(stp_pop) %>%
 
 ```{r}
 urban<-resample(urban, pop_ras_proj)
-urban_df<-rasterToPoints(urban) %>% 
+urban_pts<-rasterToPoints(urban)
+urban_df<-urban_pts %>% 
   as.data.frame() 
 
 #unconn_urban<-urban * non_stp #These are the urban areas NOT covered by STPs
@@ -219,12 +223,19 @@ Total population is 1198468
 # Septic
 
 ```{r}
+#test<-read.csv("/home/kuempel/Waste_water_data/Fiji/Population/Urban_area_population.csv")
+```
+
+
+```{r}
 pop_target<-(fiji_pop_df-sum(stp_test$population_fji_albers,na.rm = T))/2
 
 septic<-test %>% 
-  filter(is.na(stp) == T) %>% 
-  dplyr::arrange(desc(population_fji_albers),
-                 desc(Fiji_urban)) %>% 
+  filter(is.na(stp) == T,
+         is.na(population_fji_albers) == F) %>% 
+  mutate(urban_bin = ifelse(Fiji_urban>0,1,0)) %>% 
+  dplyr::arrange(desc(Fiji_urban),
+                desc(population_fji_albers))# %>% 
   mutate(cumpop = cumsum(population_fji_albers)) %>% 
   filter(cumpop<=pop_target) 
 
@@ -235,6 +246,7 @@ septic_ras<-rasterFromXYZ(septic2, pop_ras_proj)
 crs(septic_ras)<-crs(pop_ras_proj)
 writeRaster(septic_ras,here("output_data/Population/Septic_population.tif"), overwrite = T)
 ```
+
 # Direct
 
 ```{r}
