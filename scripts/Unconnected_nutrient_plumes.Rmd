@@ -110,11 +110,15 @@ data_per_river<-st_join(data_per_river,basins12_proj)
 # Nutrients per basin
 
 ```{r}
-septic_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_septic_per_basin.csv")) %>% 
-  dplyr::select(-X)
+#septic_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_septic_per_basin.csv")) %>% 
+#  dplyr::select(-X)
 
-direct_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_direct_per_basin.csv")) %>% 
-  dplyr::select(-X)
+#direct_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_direct_per_basin.csv")) %>% 
+#  dplyr::select(-X)
+
+un_basins_nutri<-st_read(here("output_data/InVEST/model_output/watershed_results_ndr.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
 ```
 
 
@@ -153,6 +157,22 @@ write_csv(direct_basins_nutri_dist, here("output_data/Nutrients/Fiji_direct_nutr
   
 ```
 
+```{r}
+un_basins_nutri_all<-left_join(data_per_river, un_basins_nutri, by = c("MAIN_BAS")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
+
+un_basins_nutri_dist<-un_basins_nutri_all %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(Total_discharge = sum(riv_dis)) %>% 
+  left_join(., un_basins_nutri_all, by = "MAIN_BAS") %>% 
+  mutate(prop_dis = riv_dis/Total_discharge,
+         N_pourpoint = prop_dis * n_exp_tot)
+
+write_csv(un_basins_nutri_dist, here("output_data/Nutrients/Fiji_unconnected_nutrients_at_pourpoints.csv"))
+
+```
+
 # Nutrient export at each pourpoint
 
 ```{r}
@@ -169,6 +189,7 @@ st_crs(pour_points)<-t_crs
 
 st_write(pour_points, here("output_data/Rivers/Fiji_septic_pourpoints.shp"), delete_layer = T)
 ```
+
 
 
 # Combine with spatil info
@@ -312,4 +333,64 @@ pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>%
   
   writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_direct_P_plumes.tif")),overwrite = T)
 
+```
+
+# Unconnected together after InVEST model
+
+```{r}
+pour_points<-un_basins_nutri_dist
+coordinates(pour_points) <- ~pp_x+pp_y
+pour_points<-st_as_sf(pour_points)
+pour_points<-pour_points %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint) %>% 
+  rename(N = N_pourpoint) %>% #,
+        # P = P_pourpoint) %>% 
+  filter(!is.na(N) == T)
+
+st_crs(pour_points)<-t_crs
+
+st_write(pour_points, here("output_data/Rivers/Fiji_unconnected_pourpoints.shp"), delete_layer = T)
+```
+
+```{r}
+gc()
+p_extent=st_as_sfc(st_bbox(pour_points))
+p_extent_sub = st_make_grid(p_extent,n = c(40,20)) %>%
+               st_as_sf() %>% 
+               rename(geom=x) %>%
+               mutate(group=1:nrow(.))
+tmap::tm_shape(p_extent_sub)+tmap::tm_polygons()
+pour_points = st_join(pour_points, p_extent_sub, join = st_intersects) %>% 
+              mutate(ID=1:nrow(.)) %>% 
+  as_Spatial
+
+  point_list<-split(pour_points,as.character(pour_points@data$ID))
+  re = pbmcapply::pbmclapply(point_list, N_plume, ocean_raster, 80000, c(1000,1000), 90000, mc.cores = 10)
+  #Check to see if we should change buffer value
+  
+  # Set extent for all outputs to the max extent needed, e.g., newextent
+  newextent<-extent(Reduce(extend,re)) # Get max extent of all objects
+  re_ext=mclapply(re, extend, newextent, mc.cores=1) # Use fewer cores as this gets more memory heavy
+  gc()
+  
+  # Reclass NAs to 0
+  re_ext = mclapply(re_ext, mc.cores = 1, function(x) reclassify(x, cbind(NA,0))) # Reclass NA to 0, in a more memory friendly way,apparently...
+  gc()
+
+  # Add all rasters in the group together + mask out land areas is desired
+  sed_plume_merge = Reduce("+", re_ext) 
+  sed_plume_merge = sed_plume_merge * ocean_raster # mask out land; disregard the warning
+  
+  test<-log10(sed_plume_merge +1)
+  
+  writeRaster(sed_plume_merge, here(paste0("output_data/Nutrients/Fiji_unconnected_N_plumes.tif")), overwrite = T)
+
+  
+  for(i in 1:length(re_ext)){
+    print(i)
+    sub<-re_ext[[i]]
+    sub_name<-point_list[[i]]
+    name<-sub_name@data$ID
+    writeRaster(sub, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/plumes/Unconnected_plume_",name,".tif"),overwrite = T)
+  }
 ```
