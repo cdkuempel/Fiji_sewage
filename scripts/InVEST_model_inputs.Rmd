@@ -16,14 +16,36 @@ library(here)
 library(sf)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+latlon<-"+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs "
 ```
 
 # Fiji
 
 ```{r}
 fiji<-st_read(here("projected_data/Tikina/fji_proj.shp"))
+st_crs(fiji)<-t_crs
 e<-extent(fiji)
 #fiji_template<-fasterize::fasterize(fiji, )
+```
+
+# Basins
+
+```{r}
+basins<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
+```
+
+
+
+
+```{r}
+basins<-st_read(here("projected_data/Basins/Fiji_Basins12_albers.shp")) 
+st_crs(basins)<-t_crs
+
+main_basins<-basins %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(area = sum(dis_m3_pyr,na.rm = T))
+
+st_write(main_basins, here("projected_data/Basins/Basins_Fiji_MainBasins_albers.shp"))
 ```
 
 # Precipitation
@@ -46,6 +68,14 @@ Annual average precipitation per cell
 precip_files<-list.files(path = here("raw_data/InVEST/Precipitation/WorldClim"), pattern = "wc2.1", full.names = T)
 precip_stack<-stack(precip_files)
 precip_annual<-calc(precip_stack, fun = mean, na.rm = T)
+
+writeRaster(precip_annual, here("output_data/InVEST/Precipitation/Annual_precipitation_WorldClim.tif"), overwrite = T)
+
+
+fiji_precip_annual<-crop(precip_annual, test, snap = "near")
+
+test2<-projectRaster(fiji_precip_annual, crs = t_crs)
+test3<-crop(test2, fiji, snap = "near")
 
 writeRaster(precip_annual, here("output_data/InVEST/Precipitation/Annual_precipitation_WorldClim.tif"), overwrite = T)
 
@@ -283,6 +313,12 @@ lu_filled_ras<-rasterFromXYZ(lu_filled, crs = t_crs)
 
 writeRaster(lu_filled_ras, here("output_data/InVEST/Land_use/Fiji_globio_100m_filled.tif"))
 write.csv(lu_filled, here("output_data/InVEST/Land_use/Fiji_globio_100m_filled.csv"))
+
+#lu_filled_ras<-raster(here("output_data/InVEST/Land_use/Fiji_globio_100m_filled2.tif"))
+#lu_filled_ras[lu_filled_ras<1]<-NA
+#lu_filled_ras[is.na(lu_filled_ras) == T]<-255
+#writeRaster(lu_filled_ras, #here("output_data/InVEST/Land_use/Fiji_globio_100m_filled2.tif"),overwrite = T)
+
 ```
 
 
