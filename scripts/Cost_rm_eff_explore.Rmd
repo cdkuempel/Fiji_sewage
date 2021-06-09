@@ -1,0 +1,106 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "21/12/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+library(ggplot2)
+```
+
+# 2019 costs
+
+```{r}
+cost<-read_csv(here("raw_data/Sewage_plants/STP_costs_2019.csv")) %>% 
+  filter(!is.na(Location) == T)
+
+cost<-cost %>% 
+  mutate(id = 1:nrow(cost))
+```
+
+
+# 2019 nutrient removal efficiencies
+
+```{r}
+nutri_rm<-read_csv(here("output_data/Sewage_plants/Nutrient_removal_STP_2019.csv")) %>% 
+  mutate(id = case_when(STP == "Kinoya" ~ 3,
+                        STP == "Ba" ~ 10,
+                        STP == "Lautoka" ~ 7,
+                        STP == "Naboro" ~ 4,
+                        STP == "Nadali" ~ 5,
+                        STP == "Namara" ~ 6,
+                        STP == "Navakai" ~ 8,
+                        STP == "Olosara" ~ 9,
+                        STP == "Wailada" ~ 11,
+                        STP == "Deuba" ~ 2,
+                        STP == "ACS" ~ 1))
+```
+
+
+# Number of people serviced
+
+```{r}
+pop<-read_csv(here("output_data/Sewage_plants/STP_population_check.csv")) %>% 
+  mutate(id = case_when(STP_name == "Suva_Kinoya" ~ 3,
+                        STP_name  == "Ba" ~ 10,
+                        STP_name  == "Lautoka" ~ 7,
+                        STP_name  == "Naboro Prison" ~ 4,
+                        STP_name  == "Nausori" ~ 5,
+                        STP_name  == "Labasa" ~ 6,
+                        STP_name  == "Nadi" ~ 8,
+                        STP_name  == "Sigatoka" ~ 9,
+                        STP_name  == "Wailada" ~ 11,
+                        STP_name  == "Pacific_Harbour" ~ 2,
+                        STP_name  == "Adi_Cakobau School" ~ 1))
+
+```
+
+# Join data
+
+```{r}
+df<-full_join(cost, nutri_rm, by = "id") %>% 
+  full_join(., pop, by = "id") %>% 
+  dplyr::select(Location, Total, id, STP.x, rm_eff, type, estimated, reported) %>% 
+  rename(Cost = Total,
+         STP = STP.x,
+         pop_est = estimated,
+         pop_rep = reported) %>% 
+  mutate(cost_pp_est = Cost/pop_est,
+         cost_pp_rep = Cost/pop_rep)
+```
+
+# Plots
+
+Removal efficienty vs. cost
+```{r}
+df2<-df %>% 
+  filter(type == "N",
+         !STP %in% c("ACS", "Naboro", "Wailada"))
+
+ggplot(df2, aes(x = Cost, y = rm_eff, color = STP)) +
+  geom_point()
+
+cor.test(df2$Cost, df2$rm_eff, method = "pearson")
+```
+
+```{r}
+ggplot(df2, aes(x = cost_pp_est, y = rm_eff, color = STP)) +
+  geom_point()
+
+cor.test(df2$cost_pp_est, df2$rm_eff, method = "pearson")
+```
+
+```{r}
+ggplot(df2, aes(x = cost_pp_rep, y = rm_eff, color = STP)) +
+  geom_point()
+
+cor.test(df2$cost_pp_rep, df2$rm_eff, method = "pearson")
+```
+
