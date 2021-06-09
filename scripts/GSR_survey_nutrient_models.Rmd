@@ -1,0 +1,150 @@
+---
+title: "GSR models"
+author: "Caitie"
+date: "30/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(lme4)
+library(hier.part)
+library(AICcmodavg)
+library(MuMIn)
+library(usdm)
+```
+
+
+# Load data
+
+```{r}
+gsr<-read.csv(here("output_data/GSR_Surveys/GSR_variables.csv")) %>% 
+  pivot_wider(., names_from = "Benthic.category", values_from = "avg_prop_cover")
+```
+
+# Check for multi-collinearity
+Since regression-based models can be sensitive to variables that are correlated, the variance inflation factors (VIF) for all predictor variables used in the models were calculated to check for multi-collinearity. Our final models only included variables with variance inflation factors of <5 (Zuur et al., 2010). 
+
+If VIF > 4.0 then I generally assume multicollinearity remove all those Predictor Variables before fitting them into my model
+
+```{r}
+sub_gsr<-gsr %>% 
+  dplyr::select(distance_shore, distance_stp, unconn_site, conn_site) %>% 
+  distinct()
+
+sub_gsr<-gsr %>% 
+  dplyr::select(distance_shore, distance_stp, Total_N, "Bare substrate" , "Crustose coralline algae", "Hard coral" , "Macroalgae","Other invertebrates", "Rubble",  "Sand", "Soft coral", "Turf algae" ) %>% 
+  distinct()
+
+usdm::vif(sub_gsr)
+```
+
+
+# Models for benthic categories
+We first evaluated the effects of abiotic variables on each benthic category described above. 
+
+# Check benthic models
+
+Final model selection (to obtain the best-fit model while maintaining model parsimony) was decided using AIC values (Akaike, 1974). We ensured assumptions of normality were being met and the residual plots of each model were examined to confirm to ensure homoscedasticity prior to utilising the results of the model. 
+
+# Models for fish categories
+We then evaluated the effects of both abiotic and benthic variables on each reef fish category described above. 
+
+Prior to analysis, input variables were mean-centred to facilitate model convergence (Morrongiello and Thresher, 2015), using the function “scale()” in RStudio (version 3.5.0).
+
+```{r}
+CT<-unique(gsr$Functional.group)
+CT<-CT[!is.na(CT)==T]
+
+bio.list<-list()
+abund.list<-list()
+
+for(i in 1:length(CT)){
+  print(i)
+  sub<-gsr %>% 
+    filter(Functional.group == CT[[i]])
+  
+  bio_mod<-lmer(fish_biomass_kgha~1 + scale(distance_shore) + scale(distance_stp) + scale(unconn_site) + scale(conn_site) + (1|Reef.type), data = sub, REML = FALSE, na.action = "na.fail")
+  abund_mod<-lmer(fish_count~1+ scale(distance_shore) + scale(distance_stp) + scale(unconn_site) + scale(conn_site) + (1|Reef.type), data = sub, REML = FALSE, na.action = "na.fail")
+  
+  bio.list[[i]]<-bio_mod
+  abund.list[[i]]<-abund_mod
+  
+  bio_dred<-dredge(bio_mod,rank="AICc",fixed=~(1|Reef.type),trace=TRUE,evaluate=FALSE)
+  abund_dred<-dredge(abund_mod,rank="AICc",fixed=~(1|Reef.type),trace=TRUE,evaluate=FALSE)
+  
+candidate_models<-list()
+r2val<-rep(0,length(bio_dred)) # r-square values
+for(k in 1:length(bio_dred))
+{
+  print(length(bio_dred)-k)
+  candidate_models[[k]]<-lmer(as.character(bio_dred[[k]])[2],data=sub,REML=FALSE)
+  #r2val[i]<-summary(Cand.model0[[i]])$r.squared
+}
+}
+
+```
+
+
+Use the dredge function to "write" all potential models (evaluate=FALSE)
+
+```{r}
+for(i in length(1:CT)){
+  sub_bio<-bio.list[[i]]
+  sub_abund<-abund.list[[i]]
+
+  bio_dred<-dredge(sub_bio,rank="AICc",fixed=~(1|Reef.type),trace=TRUE,evaluate=FALSE)
+  abund_dred<-dredge(sub_abund,rank="AICc",fixed=~(1|Reef.type),trace=TRUE,evaluate=FALSE)
+  
+bio_cands<-list()
+for(k in 1:length(bio_dred)){
+  print(length(bio_dred)-k)
+  bio_cands[[k]]<-lmer(as.character(bio_dred[[k]])[2],data=sub,REML=FALSE)
+  #r2val[i]<-summary(Cand.model0[[i]])$r.squared
+}
+
+abund_cands<-list()
+for(j in 1:length(abund_dred)){
+  print(length(abund_dred)-j)
+  abund_cands[[j]]<-lmer(as.character(abund_dred[[j]])[2],data=sub,REML=FALSE)
+  #r2val[i]<-summary(Cand.model0[[i]])$r.squared
+}
+
+bio_modnames <- paste("mod", 1:length(bio_cands), sep = " ")
+bio_t0<-aictab(cand.set=bio_cands, modnames=bio_modnames, sort = TRUE, second.ord = TRUE,nobs = NULL)
+bio_t0
+summary(bio_cands[[2]]) 
+
+abund_modnames <- paste("mod", 1:length(abund_cands), sep = " ")
+abund_t0<-aictab(cand.set=abund_cands, modnames=abund_modnames, sort = TRUE, second.ord = TRUE,nobs = NULL)
+abund_t0
+summary(abund_cands[[2]]) 
+
+bio_select<-bio_t0[which(bio_t0$Delta_AICc<=4),]
+bio_select1<-bio_cands[as.numeric(rownames(bio_select))]
+bionames_select<- paste("mod", 1:length(bio_select1), sep = " ")
+
+abund_select<-abund_t0[which(abund_t0$Delta_AICc<=4),]
+abund_select1<-abund_cands[as.numeric(rownames(abund_select))]
+abundnames_select<- paste("mod", 1:length(abund_select1), sep = " ")
+
+importance(abund_select1)
+importance(bio_select1)
+
+bio.MA.ests<-model.avg(bio_select1, revised.var = TRUE)
+abund.MA.ests<-model.avg(abund_select1, revised.var = TRUE)
+
+bio.MA.est.table<-round(bio.MA.ests$avg.model[,c(1,3:5)],6)
+```
+
+Looking at the output above, there is plenty of evidence for distance and elev (weights close to one), but much less for pct.cover. The number of candidate models that a parameter occurs can have a big effect of the importance weight. For example, the intercept is included in all models, so the importance weight is 1 (hence it is never shown). In the above output, pct.cover is in only one model so interpret weights with caution.
+
+
+# Check fish models
+
+
+# Hierarchical partitioning
+We then performed a hierarchical partitioning analysis including only those variables retained as significant in previous models using the hier.part package (Walsh and Mac Nally, 2013, Carrete et al., 2007). We used the overall variance explained by the model and the hierarchical partitioning results to calculate the overall variance of each response variable explained by each predictor variable.
