@@ -22,6 +22,8 @@ septic_list<-list.files(path = here("output_data/Nutrients/buffers/"), pattern =
 direct_list<-list.files(path = here("output_data/Nutrients/buffers/"), pattern = "direct", full.names = T)
 ```
 
+Note that these values are not adjusted to account for leaching - which we assume only 10% of nutrients will actually leach from soils.
+
 # Calculate total nutrients
 
 ```{r}
@@ -76,6 +78,10 @@ ggplot(septic_final, aes(x = buff2, y = value/100000, col = nutrient)) +
 ```
 
 ```{r}
+ggsave(here("figures/Septic_buffer_sensitivity.png"), device = "png", dpi = 300)
+```
+
+```{r}
 ggplot(direct_final, aes(x = buff2, y = value/100000, col = nutrient)) +
   geom_point() +
   #facet_wrap(~type) +
@@ -83,3 +89,8 @@ ggplot(direct_final, aes(x = buff2, y = value/100000, col = nutrient)) +
   xlab("Buffer distance (meters)") +
   ylab("Nutrients (hundreds of thousands, kg)")
 ```
+
+```{r}
+ggsave(here("figures/Direct_buffer_sensitivity.png"), device = "png", dpi = 300)
+```
+
