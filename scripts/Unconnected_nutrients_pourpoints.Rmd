@@ -215,3 +215,21 @@ st_crs(pour_points)<-t_crs
 
 st_write(pour_points, here("output_data/Rivers/Fiji_septic_pourpoints.shp"), delete_layer = T)
 ```
+
+
+```{r}
+pour_points_direct<-direct_basins_nutri_dist
+coordinates(pour_points_direct) <- ~pp_x+pp_y
+pour_points_direct<-st_as_sf(pour_points_direct)
+pour_points_direct<-pour_points_direct %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint, N_pourpoint_leach, P_pourpoint_leach) %>% 
+  rename(N = N_pourpoint,
+         P = P_pourpoint,
+         N_leach = N_pourpoint_leach,
+         P_leach = P_pourpoint_leach) %>% 
+  filter(!is.na(N) == T)
+
+st_crs(pour_points_direct)<-t_crs
+
+st_write(pour_points_direct, here("output_data/Rivers/Fiji_direct_pourpoints.shp"), delete_layer = T)
+```
