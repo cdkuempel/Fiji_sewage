@@ -48,7 +48,7 @@ N_unconnected<-raster(here("output_data/Nutrients/N_unconnected.tif"))
 #https://science.sciencemag.org/content/suppl/2020/09/16/369.6510.1515.DC1
 
 
-buff<-seq(from = 100, to = 3000, by = 100) %>% as.list()
+buff<-seq(from = 10, to = 50, by = 10) %>% as.list()
 
 create_buff<-function(x){
   
