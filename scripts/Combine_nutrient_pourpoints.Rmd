@@ -25,6 +25,8 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 ```{r}
 connected<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints.shp"))
 st_crs(connected)<-t_crs
+
+x<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints_prj.shp"))
 ```
 
 ## Septic
@@ -91,11 +93,25 @@ mutate(un_N_leach = NA,
 ```
 
 ```{r}
-test<-rbind(connected_final, unconnected_final)
+all_pp<-rbind(connected_final, unconnected_final)
+
+all_pp2<-st_transform(all_pp, t_crs)
 ```
 
 
 # Write data - send data to Daniel for ocean transport model
 
+```{r}
+st_write(all_pp2, here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp"), delete_layer = T)
+```
 
+For some reason the CRS doesn't save...
+```{r}
+test<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp"))
+```
+
+
+```{r}
+plot(test["un_N_lc"])
+```
 
