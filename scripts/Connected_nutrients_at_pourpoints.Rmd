@@ -1,0 +1,177 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "14/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(raster)
+library(ggplot2)
+library(rgdal)
+library(gdistance)
+library(reshape2)
+library(rgrass7)
+library(parallel)
+library(tmap)
+#remotes::install_github("SEEG-Oxford/seegSDM")
+library(seegSDM)
+library(tabularaster)
+library(units)
+library(lwgeom)
+
+source(here("scripts/plume_functions.R"))
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Nutrients at each pourpoint
+
+```{r}
+stp_crs<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp")) %>% 
+  st_transform(., crs = t_crs)
+
+stp<-stp_crs %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+```
+
+# Location of pourpoints
+
+```{r}
+basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp")) %>% 
+  st_transform(., crs = t_crs)
+```
+
+
+```{r}
+pp_mainriv<-c(50489575, 50487054, 50492092, 50497050, 50497707, 50497293, 50473038,50498761)
+stp_names<-c("Lautoka", "Ba", "Nadi", "Kinoya", "Sigatoka", "Rewa", "Labasa", "Deuba")
+pp_df<-data.frame(STP = stp_names, mainriv = pp_mainriv)
+
+rivers<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
+rivers_proj<-st_transform(rivers, crs = t_crs)
+
+sub_fiji_rivers<- rivers_proj %>% 
+  filter(NEXT_DOWN == 0) %>% 
+  st_cast(., "LINESTRING") %>% 
+  filter(MAIN_RIV %in% pp_df$mainriv) %>% 
+  filter(!duplicated(HYRIV_ID)) %>% 
+  left_join(., pp_df, by = c("MAIN_RIV" = "mainriv")) %>% 
+  dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, STP) 
+```
+
+```{r}
+#basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
+
+#basins12_proj<-st_transform(basins12, st_crs(sub_fiji_rivers))
+```
+
+
+```{r}
+pnts<-st_endpoint(sub_fiji_rivers) 
+pnts_xy<-st_coordinates(pnts) 
+
+data_per_river<-cbind(sub_fiji_rivers, pnts_xy) %>% 
+  rename(pp_x = X,
+         pp_y = Y) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+#test<-st_transform(sub_fiji_rivers, st_crs(stp_crs))
+#test2<-st_transform(basins12, st_crs(stp_crs))
+
+#test$cnt2 = stringr::str_count(test$geometry, ",")
+#nc3 = filter(test, cnt2>1)
+#test2$cnt2<-stringr::str_count(test2$geometry, ",")
+#nc4<-filter(test2, cnt2>1)
+
+#data_per_river<-st_join(sub_fiji_rivers, basins12)
+#data_per_river<-st_join(nc3, nc4)
+#data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
+
+#data_per_river<-st_transform(data_per_river, st_crs(rivers)) %>% 
+#  rename(riv_dis = dis_m3_pyr.x,
+#         bas_dis = dis_m3_pyr.y)
+
+#pnts<-st_transform(pnts, st_crs(rivers))
+
+#pb <- txtProgressBar(min = 0, max = nrow(data_per_river), style = 3) 
+#pour_points<-list()
+#for (i in 1:nrow(data_per_river)){
+#  setTxtProgressBar(pb, i)
+#  points_line<- st_cast(data_per_river[i,], "POINT")
+#  pour_points[[i]]<- points_line[nrow(points_line),]
+#  data_per_river[i,"pp_x"]<-extent(pour_points[[i]])[1]
+#  data_per_river[i,"pp_y"]<-extent(pour_points[[i]])[3]
+#  
+#}
+```
+
+
+```{r}
+stp_pp<-st_read(here("output_data/Sewage_plants/All_STP_outfalls_Fiji.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+    mutate(ID = ifelse(Name == "Pacific Harbor Sewage Outfall", 1,
+                            ifelse(Name == "PWD (Kinoya) Sewage Outfall" , 2,
+                                   ifelse(Name == "Naboro", NA,
+                                          ifelse(Name == "Nadali", 3,
+                                                 ifelse(Name ==  "Labasa Outfall", 4,
+                                                        ifelse(Name == "Lautoka Natabua Sewage Outfall", 5,
+                                                               ifelse(Name ==  "Nadi outfall" , 6,
+                                                                      ifelse(Name == "Sigatoka Outfall", 7,
+                                                                             ifelse(Name == "Ba outfall", 8, NA))))))))))
+
+stp_pp_proj<-st_transform(stp_pp, crs = t_crs) %>% 
+  mutate(ID = ifelse(Name == "Rewa Outfall", 3, 
+                     ifelse(Name == "ACS Outfall",NA,
+                            ifelse(Name == "Naboro Outfall", NA,
+                                   ifelse(Name == "Wailada Outfall", NA, as.numeric(ID)))))) %>% 
+  filter(!is.na(ID) == T)
+
+# Need to look into outfalls again
+```
+
+```{r}
+pp_nutri<-data_per_river %>% 
+  dplyr::select(HYRIV_ID, MAIN_RIV, STP, pp_x, pp_y) %>% 
+  mutate(ID = case_when(STP == "Labasa" ~ 4,
+                        STP == "Ba"~ 8,
+                        STP == "Lautoka" ~ 5,
+                        STP == "Nadi" ~ 6,
+                        STP == "Kinoya" ~ 2,
+                        STP == "Rewa" ~ 3,
+                        STP == "Sigatoka" ~ 7,
+                        STP == "Deuba" ~ 1)) %>% 
+  left_join(., stp, by = "ID")
+
+```
+
+```{r}
+pour_points<-pp_nutri
+pour_points<-left_join(stp_pp_proj, stp, by = "ID") %>% 
+  st_transform(., crs= t_crs) 
+#coordinates(pour_points) <- ~pp_x+pp_y
+#pour_points<-st_as_sf(pour_points)
+#pour_points<-pour_points %>% 
+#  dplyr::select(HYRIV_ID, STP.x, STP.y,ID, N, P) %>% 
+#  filter(!is.na(N) == T)
+
+st_crs(pour_points)<-t_crs
+
+pour_points<-st_transform(pour_points, crs = t_crs)
+
+st_write(pour_points, here("output_data/Rivers/Fiji_connected_pourpoints.shp"), delete_layer = T)
+
+#test<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints.shp"))
+
+#Try a different projection?
+#pour_points<-st_transform(pour_points, crs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+```
