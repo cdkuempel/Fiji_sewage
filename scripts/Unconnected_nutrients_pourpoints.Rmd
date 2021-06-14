@@ -1,0 +1,217 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "17/09/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(raster)
+library(ggplot2)
+library(rgdal)
+library(gdistance)
+library(reshape2)
+library(rgrass7)
+library(parallel)
+library(tmap)
+#remotes::install_github("SEEG-Oxford/seegSDM")
+library(seegSDM)
+library(tabularaster)
+library(units)
+library(lwgeom)
+library(here)
+
+source(here("scripts/plume_functions.R"))
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+
+# Rivers
+
+```{r}
+rivers<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
+```
+
+
+# Basins
+
+```{r}
+# Read in data and calculate area
+basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
+
+basins12_proj<-st_transform(basins12, crs=t_crs) %>% 
+  dplyr::select(HYBAS_ID, NEXT_DOWN, MAIN_BAS)
+
+#st_write(basins12_proj, here("projected_data/Basins/AllBasins12.shp"))
+
+#basins12_proj<-st_read(here("projected_data/Basins/AllBasins12.shp"))
+
+rivers_proj<-st_transform(rivers, crs = t_crs)
+```
+
+# Pourpoints
+Method from here: https://stackoverflow.com/questions/55106950/r-sf-intersect-lines-with-the-borders-of-multipolygons-extract-coordinates-of
+
+Here is the new method I should use: https://gis.stackexchange.com/questions/251101/return-end-vertices-of-an-sf-linestring
+
+```{r}
+# Read in data
+sub_fiji_rivers<- rivers_proj %>% 
+  filter(NEXT_DOWN == 0) %>% 
+  st_cast(., "LINESTRING") %>% 
+  filter(!duplicated(HYRIV_ID))
+
+
+#If you only want the endpoints, then st_line_sample is what you are looking for:
+
+pnts<-st_endpoint(sub_fiji_rivers) 
+
+pnts_xy<-st_coordinates(pnts) 
+
+data_per_river<-cbind(sub_fiji_rivers, pnts_xy) %>% 
+  rename(pp_x = X,
+         pp_y = Y) %>% 
+  dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, dis_m3_pyr, pp_x, pp_y) %>% 
+  rename(riv_dis = dis_m3_pyr)
+
+data_per_river<-st_join(data_per_river,basins12_proj)
+
+#data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
+
+#data_per_river<-st_transform(data_per_river, st_crs(rivers)) %>% 
+#  rename(riv_dis = dis_m3_pyr.x,
+#         bas_dis = dis_m3_pyr.y)
+
+#pnts<-st_transform(pnts, st_crs(rivers))
+
+#pb <- txtProgressBar(min = 0, max = nrow(data_per_river), style = 3) 
+#pour_points<-list()
+#for (i in 1:nrow(data_per_river)){
+#  setTxtProgressBar(pb, i)
+#  points_line<- st_cast(data_per_river[i,], "POINT")
+#  pour_points[[i]]<- points_line[nrow(points_line),]
+#  data_per_river[i,"pp_x"]<-extent(pour_points[[i]])[1]
+#  data_per_river[i,"pp_y"]<-extent(pour_points[[i]])[3]
+  
+#}
+
+```
+
+
+
+# Nutrients per basin
+
+Now we assume only nutrients within 50 meters of rivers gets into surface waters
+
+Read in data
+```{r}
+septic_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_septic_per_basin_50_buff.csv")) %>% 
+  dplyr::select(-X)
+  
+direct_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_50_buff.csv")) %>% 
+  dplyr::select(-X)
+```
+
+
+```{r}
+# Old data
+
+#septic_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_septic_per_basin.csv")) %>% 
+#  dplyr::select(-X)
+
+#direct_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_direct_per_basin.csv")) %>% 
+#  dplyr::select(-X)
+
+
+# This is if the Invest model is used
+#un_basins_nutri<-st_read(here("output_data/InVEST/model_output/watershed_results_ndr.shp")) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
+```
+
+
+# Distribute
+
+We distributed the sediment export across all points weighted by the mean annual discharge of each river
+
+```{r}
+septic_basins_nutri_all<-left_join(data_per_river, septic_basins_nutri, by = c("MAIN_BAS")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
+
+direct_basins_nutri_all<-left_join(data_per_river, direct_basins_nutri, by = c("MAIN_BAS")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
+
+septic_basins_nutri_dist<-septic_basins_nutri_all %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(Total_discharge = sum(riv_dis)) %>% 
+  left_join(., septic_basins_nutri_all, by = "MAIN_BAS") %>% 
+  mutate(prop_dis = riv_dis/Total_discharge,
+         N_pourpoint = prop_dis * N,
+         P_pourpoint = prop_dis * P,
+         N_pourpoint_leach = N_pourpoint * 0.1,
+         P_pourpoint_leach = P_pourpoint * 0.1) # Leaching rate is from Jacks et al. 1999 (1-50% of nitrates leached to groundwater)
+
+direct_basins_nutri_dist<-direct_basins_nutri_all %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(Total_discharge = sum(riv_dis)) %>% 
+  left_join(., direct_basins_nutri_all, by = "MAIN_BAS") %>% 
+  mutate(prop_dis = riv_dis/Total_discharge,
+         N_pourpoint = prop_dis * N,
+         P_pourpoint = prop_dis * P,
+         N_pourpoint_leach = N_pourpoint * 0.1,
+         P_pourpoint_leach = P_pourpoint * 0.1) # Leaching rate is from Jacks et al. 1999 Try to find values specifically for phosphorous?
+
+write_csv(septic_basins_nutri_dist, here("output_data/Nutrients/Fiji_septic_nutrients_at_pourpoints.csv"))
+
+write_csv(direct_basins_nutri_dist, here("output_data/Nutrients/Fiji_direct_nutrients_at_pourpoints.csv"))
+  
+```
+
+```{r}
+# This is if we were using the InVEST output
+
+
+#un_basins_nutri_all<-left_join(data_per_river, un_basins_nutri, by = c("MAIN_BAS")) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
+
+#un_basins_nutri_dist<-un_basins_nutri_all %>% 
+#  group_by(MAIN_BAS) %>% 
+#  summarise(Total_discharge = sum(riv_dis)) %>% 
+#  left_join(., un_basins_nutri_all, by = "MAIN_BAS") %>% 
+#  mutate(prop_dis = riv_dis/Total_discharge,
+#         N_pourpoint = prop_dis * n_exp_tot)
+
+#write_csv(un_basins_nutri_dist, here("output_data/Nutrients/Fiji_unconnected_nutrients_at_pourpoints.csv"))
+
+```
+
+# Nutrient export at each pourpoint (spatial)
+
+```{r}
+pour_points<-septic_basins_nutri_dist
+coordinates(pour_points) <- ~pp_x+pp_y
+pour_points<-st_as_sf(pour_points)
+pour_points<-pour_points %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint, N_pourpoint_leach, P_pourpoint_leach) %>% 
+  rename(N = N_pourpoint,
+         P = P_pourpoint,
+         N_leach = N_pourpoint_leach,
+         P_leach = P_pourpoint_leach) %>% 
+  filter(!is.na(N) == T)
+
+st_crs(pour_points)<-t_crs
+
+st_write(pour_points, here("output_data/Rivers/Fiji_septic_pourpoints.shp"), delete_layer = T)
+```
