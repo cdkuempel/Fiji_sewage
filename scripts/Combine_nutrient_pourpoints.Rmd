@@ -1,0 +1,101 @@
+---
+title: "All_nutrients_pourpoints"
+author: "Caitie"
+date: "14/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+library(sf)
+library(raster)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Read in data
+
+## Connected 
+
+```{r}
+connected<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints.shp"))
+st_crs(connected)<-t_crs
+```
+
+## Septic
+
+```{r}
+septic<-st_read(here("output_data/Rivers/Fiji_septic_pourpoints.shp")) %>% 
+  rename(N_septic = N,
+         P_septic = P,
+         N_septic_leach = N_leach,
+         P_septic_leach = P_leach)
+st_crs(septic)<-t_crs
+```
+
+
+## Direct
+
+```{r}
+direct<-st_read(here("output_data/Rivers/Fiji_direct_pourpoints.shp")) %>% 
+  rename(N_direct = N,
+         P_direct = P,
+         N_direct_leach = N_leach,
+         P_direct_leach = P_leach)
+st_crs(direct)<-t_crs
+```
+
+## Tourism 
+
+```{r}
+
+```
+
+# Combine
+
+```{r}
+unconnected<-st_join(direct,septic) %>% 
+  dplyr::select(-HYRIV_ID.y, -MAIN_BAS.y) %>% 
+  rename(HYRIV_ID = HYRIV_ID.x,
+         MAIN_BAS = MAIN_BAS.x) %>% 
+  mutate(un_N = N_septic + N_direct,
+         un_P = P_septic + P_direct,
+         un_N_leach = N_septic_leach + N_direct_leach,
+         un_P_leach = P_septic_leach + P_direct_leach)
+
+unconnected_final<-unconnected %>% 
+  dplyr::select(HYRIV_ID, un_N_leach, un_P_leach, N_septic_leach, N_direct_leach, P_septic_leach, P_direct_leach) %>% 
+  rename(pourpoint =HYRIV_ID) %>% 
+  mutate(conn_N = NA,
+         conn_P = NA)
+```
+
+```{r}
+connected_final<-connected %>% 
+  dplyr::select(Name, N, P) %>% 
+  rename(pourpoint = Name,
+         conn_N = N,
+         conn_P = P) %>% 
+mutate(un_N_leach = NA,
+         un_P_leach = NA,
+         N_septic_leach = NA,
+         N_direct_leach = NA,
+         P_septic_leach = NA,
+         P_direct_leach = NA)
+
+```
+
+```{r}
+test<-rbind(connected_final, unconnected_final)
+```
+
+
+# Write data - send data to Daniel for ocean transport model
+
+
+
