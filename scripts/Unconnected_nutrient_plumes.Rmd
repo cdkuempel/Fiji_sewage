@@ -27,6 +27,7 @@ library(seegSDM)
 library(tabularaster)
 library(units)
 library(lwgeom)
+library(here)
 
 source(here("scripts/plume_functions.R"))
 
@@ -109,16 +110,32 @@ data_per_river<-st_join(data_per_river,basins12_proj)
 
 # Nutrients per basin
 
+Now we assume only nutrients within 50 meters of rivers gets into surface waters
+
+Read in data
 ```{r}
+septic_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_septic_per_basin_50_buff.csv")) %>% 
+  dplyr::select(-X)
+  
+direct_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_50_buff.csv")) %>% 
+  dplyr::select(-X)
+```
+
+
+```{r}
+# Old data
+
 #septic_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_septic_per_basin.csv")) %>% 
 #  dplyr::select(-X)
 
 #direct_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_direct_per_basin.csv")) %>% 
 #  dplyr::select(-X)
 
-un_basins_nutri<-st_read(here("output_data/InVEST/model_output/watershed_results_ndr.shp")) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry)
+
+# This is if the Invest model is used
+#un_basins_nutri<-st_read(here("output_data/InVEST/model_output/watershed_results_ndr.shp")) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
 ```
 
 
@@ -141,7 +158,9 @@ septic_basins_nutri_dist<-septic_basins_nutri_all %>%
   left_join(., septic_basins_nutri_all, by = "MAIN_BAS") %>% 
   mutate(prop_dis = riv_dis/Total_discharge,
          N_pourpoint = prop_dis * N,
-         P_pourpoint = prop_dis * P)
+         P_pourpoint = prop_dis * P,
+         N_pourpoint_leach = N_pourpoint * 0.1,
+         P_pourpoint_leach = P_pourpoint * 0.1) # Leaching rate is from Jacks et al. 1999 (1-50% of nitrates leached to groundwater)
 
 direct_basins_nutri_dist<-direct_basins_nutri_all %>% 
   group_by(MAIN_BAS) %>% 
@@ -149,7 +168,9 @@ direct_basins_nutri_dist<-direct_basins_nutri_all %>%
   left_join(., direct_basins_nutri_all, by = "MAIN_BAS") %>% 
   mutate(prop_dis = riv_dis/Total_discharge,
          N_pourpoint = prop_dis * N,
-         P_pourpoint = prop_dis * P)
+         P_pourpoint = prop_dis * P,
+         N_pourpoint_leach = N_pourpoint * 0.1,
+         P_pourpoint_leach = P_pourpoint * 0.1) # Leaching rate is from Jacks et al. 1999 Try to find values specifically for phosphorous?
 
 write_csv(septic_basins_nutri_dist, here("output_data/Nutrients/Fiji_septic_nutrients_at_pourpoints.csv"))
 
@@ -158,31 +179,36 @@ write_csv(direct_basins_nutri_dist, here("output_data/Nutrients/Fiji_direct_nutr
 ```
 
 ```{r}
-un_basins_nutri_all<-left_join(data_per_river, un_basins_nutri, by = c("MAIN_BAS")) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
+# This is if we were using the InVEST output
 
-un_basins_nutri_dist<-un_basins_nutri_all %>% 
-  group_by(MAIN_BAS) %>% 
-  summarise(Total_discharge = sum(riv_dis)) %>% 
-  left_join(., un_basins_nutri_all, by = "MAIN_BAS") %>% 
-  mutate(prop_dis = riv_dis/Total_discharge,
-         N_pourpoint = prop_dis * n_exp_tot)
 
-write_csv(un_basins_nutri_dist, here("output_data/Nutrients/Fiji_unconnected_nutrients_at_pourpoints.csv"))
+#un_basins_nutri_all<-left_join(data_per_river, un_basins_nutri, by = c("MAIN_BAS")) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
+
+#un_basins_nutri_dist<-un_basins_nutri_all %>% 
+#  group_by(MAIN_BAS) %>% 
+#  summarise(Total_discharge = sum(riv_dis)) %>% 
+#  left_join(., un_basins_nutri_all, by = "MAIN_BAS") %>% 
+#  mutate(prop_dis = riv_dis/Total_discharge,
+#         N_pourpoint = prop_dis * n_exp_tot)
+
+#write_csv(un_basins_nutri_dist, here("output_data/Nutrients/Fiji_unconnected_nutrients_at_pourpoints.csv"))
 
 ```
 
-# Nutrient export at each pourpoint
+# Nutrient export at each pourpoint (spatial)
 
 ```{r}
 pour_points<-septic_basins_nutri_dist
 coordinates(pour_points) <- ~pp_x+pp_y
 pour_points<-st_as_sf(pour_points)
 pour_points<-pour_points %>% 
-  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint) %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint, N_pourpoint_leach, P_pourpoint_leach) %>% 
   rename(N = N_pourpoint,
-         P = P_pourpoint) %>% 
+         P = P_pourpoint,
+         N_leach = N_pourpoint_leach,
+         P_leach = P_pourpoint_leach) %>% 
   filter(!is.na(N) == T)
 
 st_crs(pour_points)<-t_crs
@@ -190,15 +216,6 @@ st_crs(pour_points)<-t_crs
 st_write(pour_points, here("output_data/Rivers/Fiji_septic_pourpoints.shp"), delete_layer = T)
 ```
 
-
-
-# Combine with spatil info
-
-```{r}
-#pour_points<-left_join(basins_pts, basins_nutri_dist, by = c("HYRIV_ID", "HYBAS_ID","X", "Y", "riv_dis_m3_pyr")) %>% 
-#  dplyr::select("X", "Y") %>% 
-#  st_intersection(pnts,.)
-```
 
 # Diffusion model
 
