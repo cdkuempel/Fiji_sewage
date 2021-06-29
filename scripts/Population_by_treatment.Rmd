@@ -21,6 +21,7 @@ library(tabularaster)
 library(units)
 library(rgdal)
 library(lwgeom)
+library(fasterize)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
@@ -30,18 +31,18 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 Source- https://data.humdata.org/dataset/fiji-administrative-boundaries/resource/d949f7a8-7ac3-41eb-8aec-0e29af5042f6
 
 ```{r}
-fiji_tik<-st_read(here("raw_data/Tikina/fji_polbnda_adm3_tikina.shp")) %>% 
-  rename(TIKINA = ADM3_NAME,
-         PROVINCE = ADM2_NAME,
-         TID = FBOS_TID,
-         PID = FBOS_PID) %>% 
-  summarise()
+#fiji_tik<-st_read(here("raw_data/Tikina/fji_polbnda_adm3_tikina.shp")) %>% 
+#  rename(TIKINA = ADM3_NAME,
+#         PROVINCE = ADM2_NAME,
+#         TID = FBOS_TID,
+#         PID = FBOS_PID) %>% 
+#  summarise()
 
-fiji_proj<-st_transform(fiji_tik, t_crs)
+#fiji_proj<-st_transform(fiji_tik, t_crs)
 
-fiji_proj<-st_zm(fiji_proj)
+#fiji_proj<-st_zm(fiji_proj)
 
-st_write(fiji_proj, here("projected_data/Tikina/fji_proj.shp"), append = F)
+#st_write(fiji_proj, here("projected_data/Tikina/fji_proj.shp"), append = F)
 ```
 
 # Population density
@@ -80,7 +81,44 @@ stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>%
 stp<-stp %>% 
   mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
          ID = 1:nrow(stp))
+
+#test<-extract(pop_ras_proj, stp, cellnumbers = T, weights = T)
+
+#test2<-do.call(rbind.data.frame, test)
+#test2<-test2 %>% 
+#  filter(!is.na(value) == T,
+#         !weight<0.5)
 ```
+
+```{r}
+#stp<-st_cast(stp, "POLYGON")
+
+#stp_ras<-fasterize(stp, pop_ras_proj)
+
+#stp_ras<-rasterize(stp, pop_ras_proj, getCover = T)
+
+#sub_stp<-stp[1:2,]
+
+#test<-rasterize(sub_stp, pop_ras_proj, getCover = T)
+
+#test<-stack(pop_ras_proj, stp_ras)
+
+#stp_df<-as_tibble(stp_ras, cell = T, value = T) %>% 
+#  mutate(stp = cellvalue)
+#pop_df<-as_tibble(pop_ras_proj, cell = T, value = T) %>% 
+#  mutate(pop = cellvalue)
+
+#stp_pop<-full_join(pop_df, stp_df, by = "cellindex")
+
+#test<-stp_pop %>% 
+#  filter(!is.na(pop) == T | !is.na(stp) == T) %>% 
+#  mutate(stp_pop = ifelse(stp == 999, pop, NA))
+
+#overlay(, r2, fun = function(x, y) {x[x == 999 & y == 1] <- 1; x})
+
+#stp_ras[stp_ras == 1]<-999
+```
+
 
 # Summarise population within each STP watershed
 
@@ -116,7 +154,20 @@ prop_pop
 # Crop STP from population data
 
 ```{r}
-stp_pop<-crop(pop_ras_proj, stp, snap = "near")
+
+stp_ras <- rasterize(stp, pop_ras_proj, getCover=TRUE)
+writeRaster(stp_ras, here("output_data/Sewage_plants/STP_ras.tif"))
+
+
+stp_ras2<-stp_ras
+stp_ras2[stp_ras2<0.5] <- NA
+
+stack_test<-stack(stp_ras2, pop_ras_proj)
+
+res1 <- overlay(stack_test, fun =   
+  function(x,y) { 
+        ifelse(!is.na(x) == T, y = NA, y) 
+  } )
 ```
 
 
@@ -124,8 +175,8 @@ stp_pop<-crop(pop_ras_proj, stp, snap = "near")
 
 ```{r}
 stp<-st_cast(stp, "POLYGON")
-stp_ras<-fasterize::fasterize(stp, pop_ras_proj, field = "ID")
-writeRaster(stp_ras, here("output_data/Sewage_plants/stp_raster_residential.tif"), overwrite = T)
+stp_ras3<-fasterize::fasterize(stp, pop_ras_proj, field = "ID")
+writeRaster(stp_ras3, here("output_data/Sewage_plants/stp_raster_residential.tif"), overwrite = T)
 stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
 ```
 
@@ -158,8 +209,8 @@ pop_check<- stp %>%
   full_join(., reported_conn, by = "ID") %>% 
   dplyr::select(STP, STP_name, stp_pop, Pop_connected) %>% 
   rename(estimated = stp_pop,
-         reported = Pop_connected,
-         diff = reported - estimated)
+         reported = Pop_connected) %>% 
+  mutate(diff = reported - estimated)
 
 write.csv(pop_check,here("output_data/Sewage_plants/STP_population_check.csv"))
 ```
@@ -180,12 +231,12 @@ urban<-projectRaster(urban, crs = t_crs)
 ```
 
 ```{r}
-stp_pop<-stp_ras
-stp_pop[stp_pop>0]<-1
+#stp_pop<-stp_ras
+#stp_pop[stp_pop>0]<-1
 
-stp_df<-rasterToPoints(stp_pop) %>% 
+stp_df<-rasterToPoints(stp_ras) %>% 
   as.data.frame() %>% 
-  rename(stp = layer)
+  rename(stp = stp_raster_residential)
 
 ```
 
@@ -200,42 +251,33 @@ urban_df<-urban_pts %>%
 ```
 
 ```{r}
-test<-full_join(pop_df, urban_df, by = c("x", "y")) %>% 
-  full_join(., stp_df, by = c("x", "y")) 
+non_stp<-rasterToPoints(res1) %>% 
+  as.data.frame() %>% 
+  rename(non_stp = layer)
 
-test<-test %>% 
-  mutate(id = 1:nrow(test))
+pop_urban<-full_join(pop_df, urban_df, by = c("x", "y")) %>% 
+  full_join(., non_stp, by = c("x", "y")) %>% 
+  mutate(id = 1:nrow(pop_urban))
 ```
 
-```{r}
-stp_test<-test %>% 
-  filter(!is.na(stp) == T) %>% 
-  dplyr::select(x,y,population_fji_albers)
-
-stp_ras_pop<-rasterFromXYZ(stp_test, pop_ras_proj)
-crs(stp_ras_pop)<-crs(pop_ras_proj)
-#writeRaster(stp_ras_pop,here("output_data/Population/Connected_population.tif"), overwrite = T)
-```
 
 stp population is 227461.9
 Total population is 1198468
 
 # Septic
 
-```{r}
-#test<-read.csv("/home/kuempel/Waste_water_data/Fiji/Population/Urban_area_population.csv")
-```
-
 
 ```{r}
-pop_target<-(fiji_pop_df-sum(stp_test$population_fji_albers,na.rm = T))/2
+pop_target<-(fiji_pop_df-conn_pop)/2
 
-septic<-test %>% 
-  filter(is.na(stp) == T,
+pop_target/fiji_pop_df #Should be ~40%
+
+septic<-pop_urban %>% 
+  filter(!is.na(non_stp) == T,
          is.na(population_fji_albers) == F) %>% 
   mutate(urban_bin = ifelse(Fiji_urban>0,1,0)) %>% 
   dplyr::arrange(desc(Fiji_urban),
-                desc(population_fji_albers))# %>% 
+                desc(non_stp)) %>% 
   mutate(cumpop = cumsum(population_fji_albers)) %>% 
   filter(cumpop<=pop_target) 
 
@@ -250,8 +292,8 @@ writeRaster(septic_ras,here("output_data/Population/Septic_population.tif"), ove
 # Direct
 
 ```{r}
-direct<-test %>% 
-  filter(is.na(stp) == T,
+direct<-pop_urban %>% 
+  filter(!is.na(non_stp) == T,
          !id %in% septic$id) %>% 
   dplyr::select(x,y, population_fji_albers)
 
