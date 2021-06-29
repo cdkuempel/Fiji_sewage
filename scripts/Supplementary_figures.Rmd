@@ -1,0 +1,48 @@
+---
+title: "Supplementary_figures"
+author: "Caitie"
+date: "23/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(raster)
+library(here)
+library(ggplot2)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Population estimates vs. reported plot
+
+```{r}
+pop_check<-read_csv(here("output_data/Sewage_plants/STP_population_check.csv")) %>% 
+  filter(!is.na(estimated) == T) %>% 
+  mutate(label = ifelse(STP == "Deuba WWTP", "Pacific Harbor",
+                        ifelse(STP == "Kinoya WWTP", "Kinoya",
+                               ifelse(STP == "Nadali WWTP", "Rewa",
+                                      ifelse(STP == "Namara TP", "Labasa",
+                                             ifelse(STP == "Natabua WWTP", "Natabua",
+                                                    ifelse(STP == "Navakai WWTP", "Nadi",
+                                                           ifelse(STP == "Olosara", "Sigatoka",
+                                                                  ifelse(STP == "Votua WWTP", "Ba", NA)))))))))
+```
+
+```{r}
+ggplot(pop_check, aes(x = reported/1000, y = estimated/1000, col = label)) +
+  geom_point(size = 2) +
+  ylab("Estimated population (thousands)") +
+  xlab("Reported population (thousands)") +
+  stat_smooth(method = "lm", col = "black", linetype = "dashed") +
+  theme_bw() +
+  labs(colour="Wastewater\ntreatment plant")
+```
+```{r}
+ggsave(here("figures/Supp_reported_estimated_WWTP_population.png"), dpi =300, width = 8, height = 5,)
+```
+
