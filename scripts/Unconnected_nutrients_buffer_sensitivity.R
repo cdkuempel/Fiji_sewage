@@ -175,6 +175,68 @@ write.csv(direct_basins_nutri_df, "/home/kuempel/Fiji_sewage/output_data/Nutrien
 
 
 
+N_P_buffers<-list.files(here("output_data/Nutrients/buffers"), pattern = "septic", full.names = T)
 
+leach<-seq(0.1,1,by = 0.1)
+df2<-c()
+df3<-c()
 
+for(i in 1:length(N_P_buffers)){
+  name<-N_P_buffers[i]
+  buff<-parse_number(name)
+  c<-read.csv(N_P_buffers[i])
+  n<-sum(c$N, na.rm = T)
+  p<-sum(c$P, na.rm = T)
+  
+  for(k in 1:length(leach)){
+    rm(df)
+    print(leach[k])
+    n_leach<-n*leach[k]
+    p_leach<-p*leach[k]
+    
+    df<-data.frame(buffer = buff, leach_rate = leach[k], N = n_leach, P = p_leach)
+    
+    df2<-rbind(df2, df)
+  }
+  
+  df3<-rbind(df3,df2)
+  
+}
+
+df3<-df3 %>% 
+  mutate(type = "septic")
+
+N_P_buffers_direct<-list.files(here("output_data/Nutrients/buffers"), pattern = "direct", full.names = T)
+
+df4<-c()
+df5<-c()
+
+for(i in 1:length(N_P_buffers_direct)){
+  name<-N_P_buffers_direct[i]
+  buff<-parse_number(name)
+  c<-read.csv(N_P_buffers_direct[i])
+  n<-sum(c$N, na.rm = T)
+  p<-sum(c$P, na.rm = T)
+  
+  for(k in 1:length(leach)){
+    rm(df)
+    print(leach[k])
+    n_leach<-n*leach[k]
+    p_leach<-p*leach[k]
+    
+    df<-data.frame(buffer = buff, leach_rate = leach[k], N = n_leach, P = p_leach)
+    
+    df4<-rbind(df4, df)
+  }
+  
+  df5<-rbind(df5,df4)
+  
+}
+
+df5<- df5 %>% 
+  mutate(type = "direct")
+
+done<-rbind(df3, df5)
+
+write.csv(done, here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv"))
 
