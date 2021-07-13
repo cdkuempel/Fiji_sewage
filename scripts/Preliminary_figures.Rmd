@@ -15,7 +15,159 @@ library(tmap)
 library(here)
 library(sf)
 library(tidyverse)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
+
+# Fiji basins/Fiji outline
+
+```{r}
+fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  filter(!MAIN_BAS %in% c(5120082250)) 
+
+fiji_basins<-st_transform(fiji_basins12, t_crs)
+```
+
+# Population serviced by each treatment type per watershed
+
+Percent of population that is septic vs direct in each watershed and bubbles on STP with population serviced
+
+```{r}
+septic<-raster(here("output_data/Population/Septic_population.tif"))
+direct<-raster(here("output_data/Population/Direct_population.tif"))
+
+pop_treat_basins<-fiji_basins %>% 
+  dplyr::select(HYBAS_ID, MAIN_BAS) %>% 
+  mutate(sep_pop = extract(septic, fiji_basins, fun = sum, na.rm = T),
+         dir_pop = extract(direct, fiji_basins, fun = sum, na.rm = T))
+
+pop_treat_basins2<-pop_treat_basins %>% 
+  mutate(sep_pop = as.numeric(sep_pop),
+         sep_pop = ifelse(is.na(sep_pop) == T, 0, as.numeric(sep_pop)),
+         dir_pop = as.numeric(dir_pop),
+         dir_pop = ifelse(is.na(dir_pop) == T, 0, as.numeric(dir_pop)),
+         total_pop = sep_pop + dir_pop,
+         perc_sep = sep_pop/total_pop)
+
+  
+```
+
+
+```{r}
+septic_pop<-tm_shape(pop_treat_basins2) +
+    tm_polygons("sep_pop", 
+                style = "cont", 
+                title = "Population") +
+  tm_layout(title = "Septic")
+
+septic_pop
+```
+```{r}
+direct_pop<-tm_shape(pop_treat_basins2) +
+    tm_polygons("dir_pop", 
+                style = "cont", 
+                title = "Population") +
+  tm_layout(title = "Direct")
+
+direct_pop
+```
+
+```{r}
+#WWTP pourpoint locations
+stp_pp<-st_read(here("output_data/Sewage_plants/All_STP_outfalls_Fiji.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+    mutate(ID = ifelse(Name == "Pacific Harbor Sewage Outfall", 1,
+                            ifelse(Name == "PWD (Kinoya) Sewage Outfall" , 2,
+                                   ifelse(Name == "Naboro", NA,
+                                          ifelse(Name == "Nadali", 3,
+                                                 ifelse(Name ==  "Labasa Outfall", 4,
+                                                        ifelse(Name == "Lautoka Natabua Sewage Outfall", 5,
+                                                               ifelse(Name ==  "Nadi outfall" , 6,
+                                                                      ifelse(Name == "Sigatoka Outfall", 7,
+                                                                             ifelse(Name == "Ba outfall", 8, NA))))))))))
+
+stp_pp_proj<-st_transform(stp_pp, crs = t_crs) %>% 
+  mutate(ID = ifelse(Name == "Rewa Outfall", 3, 
+                     ifelse(Name == "ACS Outfall",NA,
+                            ifelse(Name == "Naboro Outfall", NA,
+                                   ifelse(Name == "Wailada Outfall", NA, as.numeric(ID)))))) %>% 
+  filter(!is.na(ID) == T)
+#WWTP people serviced
+```
+
+
+```{r}
+stp_pop<-read.csv(here("output_data/Sewage_plants/STP_population_check.csv")) %>% 
+  mutate(ID = ifelse(STP == "Deuba WWTP", 1,
+                     ifelse(STP == "Kinoya WWTP", 2,
+                            ifelse(STP == "Nadali WWTP", 3,
+                                   ifelse(STP == "Namara TP", 4,
+                                          ifelse(STP == "Natabua WWTP", 5,
+                                                 ifelse(STP == "Navakai WWTP", 6,
+                                                        ifelse(STP == "Olosara", 7, 8))))))),
+         label = ifelse(STP == "Deuba WWTP", "Pacific Harbor",
+                     ifelse(STP == "Kinoya WWTP", "Kinoya",
+                            ifelse(STP == "Nadali WWTP", "Rewa",
+                                   ifelse(STP == "Namara TP", "Labasa",
+                                          ifelse(STP == "Natabua WWTP", "Lautoka",
+                                                 ifelse(STP == "Navakai WWTP", "Nadi",
+                                                        ifelse(STP == "Olosara", "Sigatoka", "Ba"))))))))
+```
+
+```{r}
+connected_pop<-full_join(stp_pp_proj, stp_pop, by = "ID") %>% 
+  filter(!is.na(STP) == T)
+
+basins_diss<-fiji_basins %>% 
+  mutate(ID = as.numeric(1)) %>% 
+  group_by(ID) %>% 
+  summarise(area_km2 = sum(area_km2, na.rm = T))
+```
+
+```{r}
+
+connected_pop_plot<-tm_shape(basins_diss) +
+  tm_borders() +
+  tm_shape(connected_pop)+
+  tm_bubbles(col = "estimated",
+             style = "cont",
+             size = 0.5,
+             border.col = "black", 
+             border.lwd = 2, 
+             title.shape = "Population", 
+             title.col = "Population") +
+  tm_layout(title = "Connected") #+
+  #tm_text("label", size = 1, auto.placement = 1.5, col = "darkblue")
+
+connected_pop_plot
+
+```
+
+```{r}
+pop_final<-tmap_arrange(direct_pop, septic_pop, connected_pop_plot, nrow = 1)
+
+pop_final
+```
+
+```{r}
+tmap_save(pop_final, here("figures/Treatment_population_map.png"), dpi = 300, width = 10, height = 5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ```{r}
 r<-raster(here("output_data/Nutrients/Fiji_connected_N_plumes.tif"))
@@ -107,14 +259,13 @@ coral_export<- coral_export %>%
 
 #conn_N<-raster(here("output_data/Nutrients/Fiji_connected_N_plumes.tif"))
 ```
-
 ```{r}
 fiji<-tm_shape(fiji_basins12) +
-  tm_borders() +
-  tm_fill("linen")
+  tm_borders() 
 
 fiji
 ```
+
 
 ```{r}
 test<-coral_export %>% 
