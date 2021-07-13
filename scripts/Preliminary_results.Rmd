@@ -11,6 +11,202 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library(tidyverse)
+library(raster)
+library(here)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Population stats
+
+```{r}
+pop_ras_proj<-raster(here("projected_data/Population/population_fji_albers.tif"))
+fiji_pop_df<-cellStats(pop_ras_proj, "sum")
+
+
+stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
+
+stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
+                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(STP) %>% 
+  summarise(area = sum(area, na.rm = T)) %>% 
+  filter(!is.na(STP) == T,
+         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP"))
+  
+stp<-stp %>% 
+  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
+         ID = 1:nrow(stp))
+```
+
+```{r}
+conn_pop<-sum(stp$stp_pop)
+
+prop_pop<-conn_pop/fiji_pop_df
+```
+
+
+```{r}
+pop_check<-read_csv(here("output_data/Sewage_plants/STP_population_check.csv")) %>% 
+  filter(!is.na(estimated) == T) %>% 
+  mutate(perc_diff = (estimated - reported)/estimated)
+```
+
+```{r}
+cor.test(pop_check$reported, pop_check$estimated, method = "pearson")
+```
+
+```{r}
+septic<-raster(here("output_data/Population/Septic_population.tif"))
+```
+
+```{r}
+septic_pop<-cellStats(septic, stat = "sum", na.rm = T)
+
+septic_pop/fiji_pop_df
+```
+
+```{r}
+direct<-raster(here("output_data/Population/Direct_population.tif"))
+```
+
+```{r}
+direct_pop<-cellStats(direct, stat = "sum", na.rm = T)
+
+direct_pop/fiji_pop_df
+```
+
+```{r}
+(conn_pop + septic_pop + direct_pop)/fiji_pop_df
+```
+# Nutrients by treatment types
+
+## Connected
+
+```{r}
+nutri_connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp"))
+```
+
+The below values are in kg/year
+```{r}
+
+# Total N and P human emissions
+sum(nutri_connected$N)
+sum(nutri_connected$P)
+
+# N and P after WWTP treatment
+sum(nutri_connected$N_final) * 0.001
+sum(nutri_connected$P_final) * 0.001
+
+# Percent of N and P emissions released into environment
+sum(nutri_connected$N_final)/sum(nutri_connected$N)
+sum(nutri_connected$P_final)/sum(nutri_connected$P)
+
+
+sum(nutri_connected$P_final)/sum(nutri_connected$N_final)
+```
+
+
+## Septic
+
+```{r}
+N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
+
+P_cell_septic<-raster(here("output_data/Nutrients/Septic_P.tif"))
+
+```
+
+This is the amount of N/P through septic systems assuming 10% nutrient removal in tonnes/year
+
+```{r}
+cellStats(N_cell_septic, sum, na.rm = T) * 0.001
+cellStats(P_cell_septic, sum , na.rm = T) * 0.001
+```
+
+This is the amount that makes it into surface waters considering a 50 m lateral travel distance
+
+```{r}
+nutri_septic<-read.csv(here("output_data/Nutrients/buffers/N_P_septic_per_basin_50_buff.csv"))
+
+sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001
+sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001
+
+(sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001)/(cellStats(N_cell_septic, sum, na.rm = T) * 0.001)
+(sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001)/(cellStats(P_cell_septic, sum , na.rm = T) * 0.001)
+
+```
+
+## Direct
+
+```{r}
+N_cell_direct<-raster(here("output_data/Nutrients/Direct_N.tif"))
+
+P_cell_direct<-raster(here("output_data/Nutrients/Direct_P.tif"))
+```
+
+
+```{r}
+cellStats(N_cell_direct, sum, na.rm = T) * 0.001
+cellStats(P_cell_direct, sum , na.rm = T) * 0.001
+```
+
+```{r}
+nutri_direct<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_50_buff.csv"))
+
+sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001
+sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001
+
+(sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001)/(cellStats(N_cell_direct, sum, na.rm = T) * 0.001)
+(sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001)/(cellStats(P_cell_direct, sum , na.rm = T) * 0.001)
+```
+
+# Leach/buffer sensitivity
+
+```{r}
+sens<-read.csv(here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv"))
+
+septic_max<-sens %>% 
+  filter(type == "septic",
+         leach_rate == 1,
+         buffer == 500)
+
+direct_max<-sens %>% 
+  filter(type == "direct",
+         leach_rate == 1,
+         buffer == 500)
+
+septic_max
+direct_max
+```
+ 
+# Total N and P from wasterwater into surface water in Fiji
+
+```{r}
+(sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$N_final) * 0.001)
+
+(sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$P_final) * 0.001)
+
+
+(sum(nutri_connected$N_final) * 0.001)/((sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$N_final) * 0.001))
+
+(sum(nutri_connected$P_final) * 0.001)/((sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$P_final) * 0.001))
+```
+
+```{r}
+N_cell<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
+P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
+
+cellStats(N_cell, sum, na.rm = T) * 0.001
+cellStats(P_cell, sum, na.rm = T) * 0.001
+```
+
+
+```{r}
+((sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$N_final) * 0.001))/cellStats(N_cell, sum, na.rm = T) * 0.001
+
+((sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$P_final) * 0.001))/cellStats(P_cell, sum, na.rm = T) * 0.001
 ```
 
 # Nutrients at pourpoints
