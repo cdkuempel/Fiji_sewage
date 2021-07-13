@@ -94,6 +94,7 @@ Sewage treatment plant catchment shapefile
 
 ```{r}
 stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  st_transform(., t_crs) %>% 
   mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
                       ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
   mutate(area = st_area(.)) %>% 
@@ -130,15 +131,19 @@ nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv"))
                                                                       ifelse(STP == "Olosara", 7,
                                                                              ifelse(STP == "Ba", 8,
                                                                                     ifelse(STP == "Wailada", NA, NA))))))))))),
-         nutri_left = (1-rm_eff))
+         nutri_left = (1-rm_eff)) %>% 
+  filter(!STP == "ACS",
+         !STP == "Naboro")
 
 N_removal<-nutri_removal %>% 
   filter(type == "N",
-        !is.na(ID) == T)
+        !is.na(ID) == T) %>% 
+  rename(N_left = nutri_left)
 
 P_removal<-nutri_removal %>% 
   filter(type == "P",
-         !is.na(ID) == T)
+         !is.na(ID) == T) %>% 
+  rename(P_left = nutri_left)
 ```
 
 Make sewage treatment into a raster
@@ -164,13 +169,13 @@ P_stp_removal<-raster(here("output_data/Sewage_plants/P_stp_removal.tif"), overw
 Account for treatment
 
 ```{r}
-test<-N_stp_removal
-test[is.na(test) == T]<-1
-test[test<1]<-0
+#test<-N_stp_removal
+#test[is.na(test) == T]<-1
+#test[test<1]<-0
 
-test2<-P_stp_removal
-test2[is.na(test2) == T]<-1
-test2[test2<1]<-0
+#test2<-P_stp_removal
+#test2[is.na(test2) == T]<-1
+#test2[test2<1]<-0
 
 N_connected<-N_cell * N_stp_removal
 
@@ -192,47 +197,32 @@ writeRaster(P_unconnected, here("output_data/Nutrients/P_unconnected.tif"), over
 # Nutrients at each STP
 
 ```{r}
-stp<- stp %>% 
-  mutate(N = extract(N_connected, stp, fun = sum, na.rm = T),
-         P = extract(P_connected, stp, fun = sum, na.rm = T))
+stp_pop_nutri<- stp %>% 
+  mutate(N = extract(N_cell, stp, fun = sum, na.rm = T),
+         P = extract(P_cell, stp, fun = sum, na.rm = T)) %>% 
+  full_join(., N_removal, by = "ID") %>% 
+  full_join(., P_removal, by = "ID") %>% 
+  mutate(N_final = N * N_left,
+         P_final = P * P_left) %>% 
+  dplyr::select(STP, ID, stp_pop, N, P, N_left, P_left, N_final, P_final)
+#stp2<- stp %>% 
+#  mutate(N = extract(N_connected, stp, fun = sum, na.rm = T),
+#         P = extract(P_connected, stp, fun = sum, na.rm = T))
 ```
 
 Current nutrients based on removal efficiency
 ```{r}
-sum(stp$N) * 0.001 #Tonnes/year
-sum(stp$P) * 0.001 #Tonnes/year
+sum(stp_pop_nutri$N_final) * 0.001 #Tonnes/year
+sum(stp_pop_nutri$P_final) * 0.001 #Tonnes/year
 ```
 
 ```{r}
-st_write(stp, here("output_data/Sewage_plants/Nutrients_at_STP.shp"), append = F)
+st_write(stp_pop_nutri, here("output_data/Sewage_plants/Nutrients_at_STP.shp"), append = F)
 ```
 
 # Unconnected
 
-# River data
-
-```{r}
-rivers<-st_read(here("raw_data/Rivers/Fiji_RiverATLAS.shp"))
-
-rivers_proj<-st_transform(rivers, t_crs) %>% st_zm()
-
-st_write(rivers_proj, here("projected_data/Rivers/Fiji_rivers.shp"), append = F)
-```
-
-```{r}
-buffer_rivers<-st_buffer(rivers_proj, dist = 50) %>% 
-  mutate(ID = 1)
-```
-
-# Remove STP area
-
-```{r}
-#diff_buffer<-st_difference(buffer_rivers, st_union(stp))
-
-#st_write(diff_buffer, here("output_data/Rivers/River_buffer_stprm.shp"), append = F)
-```
-
-# Septic population
+# Septic/Direct population
 ```{r}
 septic<-raster(here("output_data/Population/Septic_population.tif"))
 
@@ -263,40 +253,6 @@ writeRaster(direct_N,here("output_data/Nutrients/Direct_N.tif"),overwrite = T)
 writeRaster(direct_P,here("output_data/Nutrients/Direct_P.tif"),overwrite = T)
 ```
 
-```{r}
-septic_N<-raster(here("output_data/Nutrients/Septic_N.tif"))
-direct_N<-raster(here("output_data/Nutrients/Direct_N.tif"))
 
-septic_P<-raster(here("output_data/Nutrients/Septic_P.tif"))
-direct_P<-raster(here("output_data/Nutrients/Direct_P.tif"))
-
-direct_N2<-resample(direct_N, septic_N, method = "ngb")
-direct_P2<-resample(direct_P, septic_P, method = "ngb")
-
-septic_N[is.na(septic_N) == T]<-0
-direct_N2[is.na(direct_N2) == T]<-0
-
-N<-septic_N + direct_N2
-
-septic_P[is.na(septic_P) == T]<-0
-direct_P2[is.na(direct_P2) == T]<-0
-
-P<-septic_P + direct_P2
-
-cellStats(N, stat = "sum", na.rm = T)
-
-N2<-N
-N2[N2 == 0]<-NA
-
-P2<-P
-P2[P2==0]<-NA
-
-writeRaster(N, here("output_data/Nutrients/Total_N_unconnected.tif"),overwrite = T)
-writeRaster(N2, here("output_data/Nutrients/Total_N_unconnected_NA.tif"),overwrite = T)
-writeRaster(P, here("output_data/Nutrients/Total_P_unconnected.tif"),overwrite = T)
-writeRaster(P2, here("output_data/Nutrients/Total_P_unconnected_NA.tif"),overwrite = T)
-
-```
-
-To get the final N/P values for septic and direct - need to use the Unconnected_nutrients_buffer_sensitivity script.
+To get the final N/P values for septic and direct - need to run the Unconnected_nutrients_buffer_sensitivity script.
 
