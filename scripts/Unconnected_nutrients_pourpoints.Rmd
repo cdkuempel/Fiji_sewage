@@ -29,16 +29,7 @@ library(units)
 library(lwgeom)
 library(here)
 
-source(here("scripts/plume_functions.R"))
-
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-```
-
-
-# Rivers
-
-```{r}
-rivers<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
 ```
 
 
@@ -46,17 +37,44 @@ rivers<-st_read(here("projected_data/Rivers/Fiji_rivers.shp"))
 
 ```{r}
 # Read in data and calculate area
-basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
-
-basins12_proj<-st_transform(basins12, crs=t_crs) %>% 
-  dplyr::select(HYBAS_ID, NEXT_DOWN, MAIN_BAS)
-
-#st_write(basins12_proj, here("projected_data/Basins/AllBasins12.shp"))
-
-#basins12_proj<-st_read(here("projected_data/Basins/AllBasins12.shp"))
-
-rivers_proj<-st_transform(rivers, crs = t_crs)
+fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  dplyr::select(HYBAS_ID, MAIN_BAS) %>% 
+  st_transform(.,t_crs)
 ```
+
+# Rivers
+
+```{r}
+rivers<-st_read(here("raw_data/Rivers/RiverATLAS_v10_shp/RiverATLAS_v10_australia.shp"))
+
+rivers_proj<-st_transform(rivers, t_crs)
+
+e<-extent(fiji_basins12)
+
+crop_rivers<-st_crop(rivers_proj, e) %>% 
+  dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr)
+
+data_per_river<-st_join(crop_rivers,fiji_basins12)
+
+na_rivers<-data_per_river %>% 
+  filter(is.na(MAIN_BAS) == T)
+
+sub_rivers<-data_per_river %>% 
+  filter(MAIN_RIV %in% na_rivers$MAIN_RIV,
+         NEXT_DOWN == MAIN_RIV) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  distinct(MAIN_RIV, MAIN_BAS) %>% 
+  filter(!is.na(MAIN_BAS) == T) %>% 
+  rename(MIS_BAS = MAIN_BAS,
+         MIS_RIV = MAIN_RIV)
+
+basin_rivers<-data_per_river %>% 
+  full_join(., sub_rivers, c("MAIN_RIV" = "MIS_RIV")) %>% 
+  mutate(MAIN_BAS = ifelse(is.na(MAIN_BAS) == T, as.numeric(MIS_BAS), as.numeric(MAIN_BAS))) %>% 
+  dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr, HYBAS_ID, MAIN_BAS)
+```
+
 
 # Pourpoints
 Method from here: https://stackoverflow.com/questions/55106950/r-sf-intersect-lines-with-the-borders-of-multipolygons-extract-coordinates-of
@@ -65,25 +83,25 @@ Here is the new method I should use: https://gis.stackexchange.com/questions/251
 
 ```{r}
 # Read in data
-sub_fiji_rivers<- rivers_proj %>% 
-  filter(NEXT_DOWN == 0) %>% 
-  st_cast(., "LINESTRING") %>% 
-  filter(!duplicated(HYRIV_ID))
+#sub_fiji_rivers<- rivers_proj %>% 
+#  filter(NEXT_DOWN == 0) %>% 
+#  st_cast(., "LINESTRING") %>% 
+#  filter(!duplicated(HYRIV_ID))
 
 
 #If you only want the endpoints, then st_line_sample is what you are looking for:
 
-pnts<-st_endpoint(sub_fiji_rivers) 
+pnts<-st_endpoint(basin_rivers) 
 
 pnts_xy<-st_coordinates(pnts) 
 
-data_per_river<-cbind(sub_fiji_rivers, pnts_xy) %>% 
+data_per_river2<-cbind(basin_rivers, pnts_xy) %>% 
   rename(pp_x = X,
          pp_y = Y) %>% 
-  dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, dis_m3_pyr, pp_x, pp_y) %>% 
+  dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, HYBAS_ID, MAIN_BAS,dis_m3_pyr, pp_x, pp_y) %>% 
   rename(riv_dis = dis_m3_pyr)
 
-data_per_river<-st_join(data_per_river,basins12_proj)
+#data_per_river<-st_join(data_per_river,basins12_proj)
 
 #data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
 
@@ -144,11 +162,11 @@ direct_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per
 We distributed the sediment export across all points weighted by the mean annual discharge of each river
 
 ```{r}
-septic_basins_nutri_all<-left_join(data_per_river, septic_basins_nutri, by = c("MAIN_BAS")) %>% 
+septic_basins_nutri_all<-left_join(data_per_river2, septic_basins_nutri, by = c("MAIN_BAS")) %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
 
-direct_basins_nutri_all<-left_join(data_per_river, direct_basins_nutri, by = c("MAIN_BAS")) %>% 
+direct_basins_nutri_all<-left_join(data_per_river2, direct_basins_nutri, by = c("MAIN_BAS")) %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
 
@@ -172,10 +190,20 @@ direct_basins_nutri_dist<-direct_basins_nutri_all %>%
          N_pourpoint_leach = N_pourpoint * 0.1,
          P_pourpoint_leach = P_pourpoint * 0.1) # Leaching rate is from Jacks et al. 1999 Try to find values specifically for phosphorous?
 
+```
+
+# Data check
+
+```{r}
+sum(septic_basins_nutri$N, na.rm = T) == sum(septic_basins_nutri_dist$N_pourpoint, na.rm = T)
+sum(direct_basins_nutri$N, na.rm = T) == sum(direct_basins_nutri_dist$N_pourpoint, na.rm = T)
+```
+
+# Write files
+```{r}
 write_csv(septic_basins_nutri_dist, here("output_data/Nutrients/Fiji_septic_nutrients_at_pourpoints.csv"))
 
 write_csv(direct_basins_nutri_dist, here("output_data/Nutrients/Fiji_direct_nutrients_at_pourpoints.csv"))
-  
 ```
 
 ```{r}
