@@ -1,0 +1,182 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "14/05/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(raster)
+library(here)
+library(gdalUtils)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+Exploring the relationship between the population layer and the urban layers
+
+# Population layer
+
+```{r}
+pop_ras_proj<-raster(here("projected_data/Population/population_fji_albers.tif"))
+```
+
+
+# Urban layer one
+
+Source:
+
+```{r}
+urban1<-raster(here("raw_data/Population/urban_grid_45.tif"))
+
+gdalwarp(srcfile = file.path(here("raw_data/Population/urban_grid_45.tif")), dstfile = file.path(here("projected_data/Population/urban_grid_45_proj.tif")), t_srs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 #+ellps=WGS84 +datum=WGS84 +units=m +no_defs", overwrite = T)
+
+urban1_proj<-raster(here("projected_data/Population/urban_grid_45_proj.tif"))
+
+urban1_res<-resample(urban1_proj, pop_ras_proj)
+```
+
+
+
+
+```{r}
+
+plot(ext.ras, xlim = c(-1093353, 195202.8), ylim = c(-456669.2 , 780521.9 ), col="red")
+plot(ext.pol, col="blue", add = T)
+```
+
+# Compare pop and urban layer
+
+```{r}
+test<-stack(pop_ras_proj, urban1_res)
+pop_extract<-as_tibble(pop_ras_proj, cell = T)
+urban_extract<-as_tibble(urban1_res, cell = T)
+
+pop_extract<-pop_extract %>% 
+  rename(Pop = cellvalue)
+
+urban_extract<-urban_extract %>% 
+  rename(Urban = cellvalue)
+
+pop_urban<-full_join(pop_extract, urban_extract, by = "cellindex")
+
+```
+
+
+```{r}
+cor.test(pop_urban$Pop, pop_urban$Urban, method = "pearson") #Significantly positively correlated but may be because of 0/NA values
+```
+
+# Remove NAs
+```{r}
+pop_urban_narm<-pop_urban %>% 
+  filter(!is.na(Pop) == T,
+         !is.na(Urban) == T)
+```
+
+```{r}
+cor.test(pop_urban_narm$Pop, pop_urban_narm$Urban, method = "pearson") 
+```
+
+```{r}
+pop_urban_narm0<-pop_urban_narm %>% 
+  filter(!Urban == 0,
+         !Pop == 0)
+```
+
+```{r}
+cor.test(pop_urban_narm0$Pop, pop_urban_narm0$Urban, method = "pearson") 
+
+plot(pop_urban_narm0$Pop, pop_urban_narm0$Urban)
+```
+
+
+```{r}
+pop_urban2<-pop_urban %>% 
+  filter(!Urban == 0,
+         !Pop == 0)
+
+pop_urban3<-pop_urban %>% 
+  mutate(Pop = ifelse(is.na(Pop) == T, 0 , as.numeric(Pop)))
+
+df_pop<-pop_urban3
+ 
+#sample OSM data (10000 cells) and compare with BCC. Repeat 100 times
+error<-vector()
+for(i in 1:100){
+  sample_df<-df_pop[sample(nrow(df_pop),10000),]
+  error[[i]]<-nrow(subset(sample_df,is.na(sample_df$Urban)))
+  gc()
+  print(i)
+}
+ 
+perc_error<- mean((error/10000)*100) # I got 21.95
+ 
+```
+
+# Urban layer two
+
+Source: IUCN
+
+```{r}
+urban<-raster(here("projected_data/Population/Fiji_urban.tif"))
+urban<-projectRaster(urban, crs = t_crs)
+
+urban_res<-resample(urban, pop_ras_proj)
+```
+
+```{r}
+test<-stack(pop_ras_proj, urban_res)
+
+urban_extract_iucn<-as_tibble(urban_res, cell = T)
+
+urban_extract_iucn<-urban_extract_iucn %>% 
+  rename(Urban = cellvalue)
+
+pop_urban_iucn<-full_join(pop_extract, urban_extract_iucn, by = "cellindex")
+
+pop_urban_iucn <- pop_urban_iucn %>% 
+  rename(Urban = cellvalue)
+```
+
+
+```{r}
+pop_urban_iucn2<-pop_urban_iucn %>% 
+  filter(!Urban == 0,
+         !Pop == 0)
+
+pop_urban_iucn_narm<-pop_urban_iucn %>% 
+  filter(!is.na(Pop) == T,
+         !is.na(Urban) == T)
+```
+
+
+```{r}
+cor.test(pop_urban_iucn2$Pop, pop_urban_iucn2$Urban, method = "pearson")
+cor.test(pop_urban_iucn$Pop, pop_urban_iucn$Urban, method = "pearson")
+cor.test(pop_urban_iucn_narm$Pop, pop_urban_iucn_narm$Urban, method = "pearson")
+
+plot(pop_urban_iucn2$Pop, pop_urban_iucn2$Urban)
+```
+
+# Calculate distance from cells to nearest Urban cell
+
+```{r}
+na_ras<-pop_ras_proj
+na_ras[na_ras]<-NA
+```
+
+```{r}
+urban_0<-urban1_res
+urban_0[urban_0 == 0]<-NA
+urban_0[urban_0 > 0]<-0
+```
+
+```{r}
+test<-distance(urban_0)
+```
+

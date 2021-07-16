@@ -1,0 +1,211 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "24/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(sf)
+library(pbmcapply)
+library(raster)
+
+source(here("scripts/plume_functions.R"))
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Connected
+
+## Nutrients exported from each STP
+
+```{r}
+nutri_stp<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  mutate(total = N+P)
+
+nutri_stp<-nutri_stp %>% 
+  mutate(ID = seq(1:nrow(nutri_stp)))
+```
+
+
+## Nutrients reaching reefs from each STP
+
+```{r}
+#corals<-st_read(here("raw_data/Coral_reefs/Fiji_selected_corals.shp"))
+#corals<-st_read("/home/kuempel/Cumulative_threats_data/reefs/EEZ_Coral.shp")
+corals<-st_read("/home/kuempel/Cumulative_threats_data/reefs/WCMC008_CoralReef2018_Py_v4.shp")
+
+fji_corals<-corals %>% 
+  filter(PARENT_ISO == "FJI")
+fji_corals<-st_transform(fji_corals, crs(t_crs))
+
+fji_corals<-st_cast(st_as_sf(fji_corals),"POLYGON")
+
+fji_corals<-fji_corals %>% 
+  mutate(ID = 1:nrow(fji_corals))
+
+corals_list<-split(fji_corals, fji_corals$ID)
+
+#corals_list<-corals_list[901:910]
+```
+
+```{r}
+stp_list<-list.files(here("output_data/Nutrients/plumes"), pattern = "fall_plume", full.names = T)
+stp_names<-list.files(here("output_data/Nutrients/plumes"), pattern = "fall_plume")
+```
+
+```{r}
+coral_func2<-function(x){ # Y is plume data, X is coral list
+  sub<-x[1]
+  if(is.null(intersect(extent(all), extent(sub)))){ #57 is FALSE
+    focus_corals<-x[1]
+    #focus_corals<-st_cast(st_as_sf(focus_corals),"POLYGON")
+    focus_corals$Fiji_connected_N_plumes<-0
+  }else{
+    focus_corals<-x[1]
+    #focus_corals<-st_cast(st_as_sf(focus_corals),"POLYGON")
+    #focus_corals$ID<-1:nrow(focus_corals)
+    #  done<-c()
+    # for(i in 1:nrow(focus_corals)){
+    #    sub_coral<-focus_corals[i,]
+    if(is.null(intersect(extent(all), extent(focus_corals)))){
+      focus_corals$Fiji_connected_N_plumes<-0
+    }else{
+      raster.polygon<-crop(all,extent(focus_corals),snap = "near")
+      nutrients<-cellStats(raster.polygon,"mean") %>% 
+        as.data.frame() %>% 
+        tibble::rownames_to_column(., "Type") %>% 
+        rename(Value = ".") %>% 
+        pivot_wider(., names_from = Type, values_from = Value)
+      
+      focus_corals$Fiji_connected_N_plumes<-as.numeric(nutrients)
+    }
+    
+    #done<-rbind(done, focus_corals)
+    #focus_corals<-done
+  }
+  focus_corals
+}
+```
+
+```{r}
+
+for(i in 2:length(stp_list)){
+print(i)
+all<-raster(stp_list[[i]])
+
+name<-str_sub(stp_names[[i]], end=-11)
+
+nutri_corals<-pbmclapply(corals_list, coral_func2, mc.cores = 30, mc.style = "ETA")
+
+corals_processed<-do.call(rbind,nutri_corals[1:length(nutri_corals)])
+
+st_write(corals_processed, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/plumes/",name,"_n_corals.shp"))
+}
+```
+
+# Unconnected
+
+## Nutrients in each watershed
+
+```{r}
+un_basins_nutri<-st_read(here("output_data/InVEST/model_output/watershed_results_ndr.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  mutate(rm_eff = (surf_n_ld - n_exp_tot)/surf_n_ld)
+```
+
+
+
+## Nutrients reaching reefs from each watershed
+
+```{r}
+#corals<-st_read(here("raw_data/Coral_reefs/Fiji_selected_corals.shp"))
+#corals<-st_read("/home/kuempel/Cumulative_threats_data/reefs/EEZ_Coral.shp")
+corals<-st_read("/home/kuempel/Cumulative_threats_data/reefs/WCMC008_CoralReef2018_Py_v4.shp")
+
+fji_corals<-corals %>% 
+  filter(PARENT_ISO == "FJI")
+fji_corals<-st_transform(fji_corals, crs(t_crs))
+
+fji_corals<-st_cast(st_as_sf(fji_corals),"POLYGON")
+
+fji_corals<-fji_corals %>% 
+  mutate(ID = 1:nrow(fji_corals))
+
+corals_list<-split(fji_corals, fji_corals$ID)
+
+#corals_list<-corals_list[901:910]
+```
+
+```{r}
+pp_basins<-read.csv(here("output_data/Nutrients/Fiji_unconnected_nutrients_at_pourpoints.csv"))
+
+pp_basins<-pp_basins %>% 
+  mutate(ID = 1:nrow(pp_basins))
+```
+
+```{r}
+pp_list<-list.files(here("output_data/Nutrients/plumes"), pattern = "Unconnected", full.names = T)
+pp_names<-list.files(here("output_data/Nutrients/plumes"), pattern = "Unconnected")
+```
+
+```{r}
+BID<-unique(pp_basins$MAIN_BAS)
+
+for(i in 1:length(BID)){
+  sub_bas<-pp_basins %>% 
+    filter(MAIN_BAS == BID[[i]])
+  sub_id<-unique(sub_bas$ID)
+  
+  sub_list<-c()
+  
+  name<-as.character(unique(sub_bas$MAIN_BAS))
+  
+  for(k in 1:length(sub_id)){
+    n<-sub_id[[k]]
+    x<-pp_list[grep(paste0("_",n,".tif"), pp_list)]
+    sub_list<-c(sub_list, x)
+  }
+  
+  ras_stack<-stack(sub_list)
+  sum_stack<-raster::calc(ras_stack, sum)
+  writeRaster(sum_stack,paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/plumes/MAIN_BAS_plume_",name,".tif"))
+}
+```
+
+```{r}
+bas_list<-list.files(here("output_data/Nutrients/plumes"), pattern = "MAIN_BAS_plume", full.names = T)
+bas_names<-list.files(here("output_data/Nutrients/plumes"), pattern = "MAIN_BAS_plume")
+```
+
+
+```{r}
+
+for(i in 41:51){
+print(i)
+all<-raster(bas_list[[i]])
+
+name<-substr(bas_names[[i]], start = 16, stop = 25)
+
+nutri_corals<-pbmclapply(corals_list, coral_func2, mc.cores = 30, mc.style = "ETA")
+
+corals_processed<-do.call(rbind,nutri_corals[1:length(nutri_corals)])
+
+corals_processed<-corals_processed %>% 
+  rename(Fiji_unconnected_N_plumes = Fiji_connected_N_plumes)
+
+st_write(corals_processed, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/plumes/MAIN_BAS_",name,"_n_corals.shp"))
+}
+
+```
+
