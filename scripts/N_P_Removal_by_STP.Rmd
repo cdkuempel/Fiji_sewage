@@ -16,7 +16,24 @@ library(stringr)
 This code calculates the average N and P removal from each sewage treatment plant in Fiji based on data from Fiji Water Authority.
 Advice from WAF is to remove values where the Final effluent > Raw values.
 
+# Flow data 
+
+Flow data is in ML which I assume means million litres
+
+```{r}
+wwtp_flow<-read.csv(here("raw_data/Sewage_plants/WWTP_flow_data.csv")) %>% 
+  filter(!WWTP == "") %>% 
+  pivot_longer(cols = X2010:X2019, names_to = "year", values_to = "flow_ML") %>% 
+  mutate(flow_ML = as.numeric(flow_ML)) %>% 
+  group_by(WWTP) %>% 
+  summarise(avg_flow_ML = mean(flow_ML)) %>% 
+  mutate(avg_flow_L = avg_flow_ML*1000000) 
+```
+
+
 # Kinoya
+
+These estimates are in mg/L. Convert to tonnes
 
 ```{r}
 kinoya<-read.csv(here("raw_data/Sewage_plants/Kinoya_Effluent.csv"), na.string = "N/A") %>% 
@@ -41,6 +58,10 @@ kinoya<-read.csv(here("raw_data/Sewage_plants/Kinoya_Effluent.csv"), na.string =
 ```
 
 ```{r}
+
+kinoya_flow<-wwtp_flow %>% 
+  filter(WWTP == "Kinoya")
+
 kinoya_N<-kinoya %>% 
   dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
   mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
@@ -49,13 +70,17 @@ kinoya_N<-kinoya %>%
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
   filter(!Final>Raw) %>% 
-  mutate(remov_eff = (Raw-Final)/Raw)
+  mutate(Final_mg = Final * kinoya_flow$avg_flow_L,
+         Raw_mg = Raw * kinoya_flow$avg_flow_L,
+         Final_tonnes = Final_mg * 1e-9,
+         Raw_tonnes = Raw_mg * 1e-9,
+         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes)
 
 kinoya_N_month<- kinoya_N %>% 
   ungroup() %>% 
   group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T))%>% 
+  summarise(Raw_month = mean(Raw_tonnes, na.rm = T),
+            Final_month = mean(Final_tonnes, na.rm = T))%>% 
   mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
 
 kinoya_N_year<-kinoya_N_month %>% 
@@ -82,7 +107,11 @@ kinoya_P<-kinoya %>%
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
   filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
+  mutate(Final_mg = Final * kinoya_flow$avg_flow_L,
+         Raw_mg = Raw * kinoya_flow$avg_flow_L,
+         Final_tonnes = Final_mg * 1e-9,
+         Raw_tonnes = Raw_mg * 1e-9,
+         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes)
 
 kinoya_P_month<- kinoya_P %>% 
   ungroup() %>% 
@@ -109,6 +138,8 @@ kinoya_P_rm<-kinoya_P_year %>%
 # Ba
 
 ```{r}
+
+
 ba<-read.csv(here("raw_data/Sewage_plants/Ba_Effluent.csv"), na.string = "N/A") %>% 
   mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
          year = lubridate::year(Date), 
@@ -1004,6 +1035,37 @@ all<-rbind(kinoya_N_rm,
            deuba_P_rm,
            acs_N_rm,
            acs_P_rm)
+```
+
+```{r}
+all_year<-rbind(kinoya_N_year,
+           kinoya_P_year,
+           ba_N_year,
+           ba_P_year,
+           lautoka_N_year,
+           lautoka_P_year,
+           naboro_N_year,
+           naboro_P_year,
+           nadali_N_year,
+           nadali_P_year,
+           namara_N_year,
+           namara_P_year,
+           navakai_N_year,
+           navakai_P_year,
+           olosara_N_year,
+           olosara_P_year,
+           wailada_N_year,
+           wailada_P_year,
+           deuba_N_year,
+           deuba_P_year,
+           acs_N_year,
+           acs_P_year)
+
+all_year2<-all_year %>% 
+  group_by(STP) %>% 
+  summarise(avg_raw_year = mean(Raw_year),
+            avg_final_year = mean(Final_year),
+            avg_rm_eff = mean(rm_eff))
 ```
 
 ```{r}
