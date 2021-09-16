@@ -83,6 +83,22 @@ direct_pop/fiji_pop_df
 ```
 # Nutrients by treatment types
 
+Nutrients without treatment
+
+```{r}
+n_fiji<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
+p_fiji<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
+```
+
+```{r}
+fiji_n<-cellStats(n_fiji, sum, na.rm = T) * 0.001
+fiji_p<-cellStats(p_fiji, sum , na.rm = T) * 0.001
+
+fiji_n
+fiji_p
+```
+
+
 ## Connected
 
 ```{r}
@@ -93,12 +109,18 @@ The below values are in kg/year
 ```{r}
 
 # Total N and P human emissions
-sum(nutri_connected$N)
-sum(nutri_connected$P)
+connected_n<-sum(nutri_connected$N) * 0.001
+connected_p<-sum(nutri_connected$P) * 0.001
+
+connected_n
+connected_p
 
 # N and P after WWTP treatment
-sum(nutri_connected$N_final) * 0.001
-sum(nutri_connected$P_final) * 0.001
+connected_n_treat<-sum(nutri_connected$N_final) * 0.001
+connected_p_treat<-sum(nutri_connected$P_final) * 0.001
+
+connected_n_treat
+connected_p_treat
 
 # Percent of N and P emissions released into environment
 sum(nutri_connected$N_final)/sum(nutri_connected$N)
@@ -108,6 +130,52 @@ sum(nutri_connected$P_final)/sum(nutri_connected$P)
 sum(nutri_connected$P_final)/sum(nutri_connected$N_final)
 ```
 
+Correlation between Fiji Water Authoriy estimates and our estimates
+
+```{r}
+nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+  mutate(ID = ifelse(STP == "ACS", NA,
+                     ifelse(STP == "Deuba", 1,
+                            ifelse(STP == "Kinoya", 2,
+                                   ifelse(STP == "Naboro", NA,
+                                          ifelse(STP == "Nadali", 3,
+                                                 ifelse(STP ==  "Namara", 4,
+                                                        ifelse(STP == "Lautoka", 5,
+                                                               ifelse(STP ==  "Navakai", 6,
+                                                                      ifelse(STP == "Olosara", 7,
+                                                                             ifelse(STP == "Ba", 8,
+                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))),
+         nutri_left = (1-rm_eff)) %>% 
+  filter(!STP == "ACS",
+         !STP == "Naboro") 
+
+N_removal<-nutri_removal %>% 
+  filter(type == "N",
+        !is.na(ID) == T) %>% 
+  rename(N_left = nutri_left) %>% 
+  dplyr::select(STP, ID, Raw, Final)%>% 
+  rename(N_raw = Raw,
+         N_eff_actual = Final)
+
+P_removal<-nutri_removal %>% 
+  filter(type == "P",
+         !is.na(ID) == T) %>% 
+  rename(P_left = nutri_left) %>% 
+  dplyr::select(STP, ID, Raw, Final) %>% 
+  rename(P_raw = Raw,
+         P_eff_actual = Final)
+  
+```
+
+```{r}
+wwtp_compare<-full_join(nutri_connected, N_removal, by = c("ID", "STP")) %>% 
+  full_join(., P_removal)
+```
+
+```{r}
+cor.test(wwtp_compare$N_final, wwtp_compare$N_eff_actual, method = "pearson")
+cor.test(wwtp_compare$P_final, wwtp_compare$P_eff_actual, method = "pearson")
+```
 
 ## Septic
 
@@ -121,8 +189,9 @@ P_cell_septic<-raster(here("output_data/Nutrients/Septic_P.tif"))
 This is the amount of N/P through septic systems assuming 10% nutrient removal in tonnes/year
 
 ```{r}
-cellStats(N_cell_septic, sum, na.rm = T) * 0.001
-cellStats(P_cell_septic, sum , na.rm = T) * 0.001
+septic_n<-cellStats(N_cell_septic, sum, na.rm = T) * 0.001
+septic_p<-cellStats(P_cell_septic, sum , na.rm = T) * 0.001
+
 ```
 
 This is the amount that makes it into surface waters considering a 50 m lateral travel distance
@@ -130,8 +199,11 @@ This is the amount that makes it into surface waters considering a 50 m lateral 
 ```{r}
 nutri_septic<-read.csv(here("output_data/Nutrients/buffers/N_P_septic_per_basin_50_buff.csv"))
 
-sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001
-sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001
+septic_n_surface<-sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001
+septic_p_surface<-sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001
+
+septic_n_surface
+septic_p_surface
 
 (sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001)/(cellStats(N_cell_septic, sum, na.rm = T) * 0.001)
 (sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001)/(cellStats(P_cell_septic, sum , na.rm = T) * 0.001)
@@ -155,11 +227,112 @@ cellStats(P_cell_direct, sum , na.rm = T) * 0.001
 ```{r}
 nutri_direct<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_50_buff.csv"))
 
-sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001
-sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001
+direct_n_surface<-sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001
+direct_p_surface<-sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001
+
+direct_n_surface
+direct_p_surface
 
 (sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001)/(cellStats(N_cell_direct, sum, na.rm = T) * 0.001)
 (sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001)/(cellStats(P_cell_direct, sum , na.rm = T) * 0.001)
+```
+
+# Domestic nutrients
+
+Total domestic nutrients at pourpoints
+
+```{r}
+total_n_surface<-connected_n_treat+septic_n_surface+direct_n_surface
+
+total_p_surface<-connected_p_treat+septic_p_surface+direct_p_surface
+
+total_n_surface
+total_p_surface
+```
+
+```{r}
+connected_n_treat/total_n_surface
+connected_p_treat/total_p_surface
+```
+
+## Tourism
+
+```{r}
+tik_hotels<-st_read(here("output_data/Tourism/Final_hotel_room_map.shp"))
+#tik_hotels<-st_read(here("output_data/Tourism/All_hotels_by_tikina.csv"))
+
+#total number of hotels 
+nrow(tik_hotels)
+
+tik_hotels_treatment<-read.csv(here("output_data/Tourism/Hotels_treatment_type.csv"))
+
+nrow(tik_hotels_treatment)
+nrow(tik_hotels_treatment)/nrow(tik_hotels)
+
+length(which(tik_hotels_treatment$treatment_level == "Primary"))
+length(which(tik_hotels_treatment$treatment_level == "Secondary"))
+length(which(tik_hotels_treatment$treatment_level == "Septic"))
+
+```
+
+```{r}
+# Relationship between # visitors and # hotels in a Tikina
+
+prop_occupancy_tik<-read.csv(here("tables/Hotels_rooms_visitors_Fiji.csv"))
+
+cor.test(prop_occupancy_tik$Tik_visitors, prop_occupancy_tik$Num_hotels, method = "pearson")
+cor.test(prop_occupancy_tik$Prop_visitors, prop_occupancy_tik$Prop_hotels, method = "pearson")
+
+```
+
+```{r}
+tik_tourist_nutrients<-read.csv(here("output_data/Tourism/Tourist_nutrients_by_Tikina.csv"))
+
+tourist_n<-sum(tik_tourist_nutrients$Tourist_N, na.rm = T)* 0.001
+tourist_p<-sum(tik_tourist_nutrients$Tourist_P, na.rm = T)* 0.001
+
+tourist_n
+tourist_p
+
+```
+```{r}
+# Nutrients after treatment
+tourist_treated<-read.csv(here("output_data/Tourism/Treated_tourist_nutrients.csv"))
+
+tourist_n_treat<-sum(tourist_treated$Treated_N, na.rm = T)/1000
+tourist_p_treat<-sum(tourist_treated$Treated_P, na.rm = T)/1000
+```
+
+```{r}
+# Total nutrient removal rate (Raw-Final)/Raw
+(tourist_n - tourist_n_treat)/tourist_n # N removal
+(tourist_p- tourist_p_treat)/tourist_p # P removal
+
+```
+
+```{r}
+# Percentage of total nutrients that Tourism makes up
+tourist_n_treat/(total_n_surface + tourist_n_treat)
+
+tourist_p_treat/(total_p_surface + tourist_p_treat)
+```
+
+```{r}
+area_tourist_nutrients<-tourist_treated %>% 
+  group_by(Area) %>% 
+  summarise(tourist_N = sum(Tourist_N, na.rm = T),
+            tourist_P = sum(Tourist_P, na.rm = T),
+            treat_N = sum(Treated_N, na.rm = T),
+            treat_P = sum(Treated_P, na.rm = T)) %>% 
+  mutate(All_nutrients = treat_N + treat_P)
+
+
+area_tourist_nutrients
+```
+
+
+```{r}
+38202.468/sum(area_tourist_nutrients$treat_N, na.rm = T)
 ```
 
 # Leach/buffer sensitivity
@@ -184,11 +357,17 @@ direct_max
 # Total N and P from wasterwater into surface water in Fiji
 
 ```{r}
+# Total excreted N and P
+cellStats(N_cell_septic, sum, na.rm = T) * 0.001 + cellStats(N_cell_direct, sum , na.rm = T) * 0.001 + sum(nutri_connected$N_final, na.rm = T) * 0.001
+
+cellStats(P_cell_septic, sum, na.rm = T) * 0.001 + cellStats(P_cell_direct, sum , na.rm = T) * 0.001 + sum(nutri_connected$P_final, na.rm = T) * 0.001
+
+# Total N and P reaching surface waters
 (sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$N_final) * 0.001)
 
 (sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$P_final) * 0.001)
 
-
+#Proportion of connected N and P from total
 (sum(nutri_connected$N_final) * 0.001)/((sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$N,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$N_final) * 0.001))
 
 (sum(nutri_connected$P_final) * 0.001)/((sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_septic$P,na.rm = T) * 0.1 * 0.001) + (sum(nutri_connected$P_final) * 0.001))
@@ -211,54 +390,24 @@ cellStats(P_cell, sum, na.rm = T) * 0.001
 
 # Nutrients at pourpoints
 
+## Connected
 ```{r}
 connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp")) %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry)
-unconnected<-read.csv(here("output_data/Nutrients/N_P_unconnected_per_basin.csv"))
-tourist<-read.csv(here("output_data/Sewage_plants/Connected_tourist_nutrients.csv"))
+
+cor.test(connected$stp_pop, connected$N_final, method = "pearson")
 ```
 
 ```{r}
-conn_N<-sum(connected$N, na.rm = T)
-unconn_N<-sum(unconnected$N, na.rm = T)
-conn_P<-sum(connected$P, na.rm = T)
-unconn_P<-sum(unconnected$P, na.rm = T)
-tourist_N<-sum(tourist$Total_N, na.rm = T)
-tourist_P<-sum(tourist$Total_P, na.rm = T)
+septic_pp<-read.csv(here("output_data/Nutrients/Fiji_septic_nutrients_at_pourpoints.csv"))
 
-df<-data.frame(type = c("Connected", "Unconnected", "Connected", "Unconnected", "Connected_tourism", "Connected_tourism"),
-               nutrient = c("N", "N", "P", "P", "N", "P"),
-               value = c(conn_N, unconn_N, conn_P, unconn_P, tourist_N, tourist_P))
-
-
-
-sum(df$value) * 0.001
+direct_pp<-read.csv(here("output_data/Nutrients/Fiji_direct_nutrients_at_pourpoints.csv"))
 ```
 
-```{r}
-prop<-df %>% 
-  group_by(type) %>% 
-  summarise(all = sum(value, na.rm = T))
-
-prop<-prop %>% 
-  mutate(prop = all/sum(prop$all))
-```
 
 
 # Nutrients at corals
 
-```{r}
-coral_export<-st_read(here("output_data/Nutrients/Fiji_corals_nutrient_export.shp")) 
 
-coral_export<- coral_export %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
-  pivot_longer(., cols =c("conn_N" ,"conn_P" , "uncnn_N" , "uncnn_P" , "torst_N" , "torst_P" , "Total_N" , "Total_P" , "Ttl_ntr"), names_to = "type", values_to = "value") %>% 
-  group_by(type) %>% 
-  summarise(totals = sum(value, na.rm = T)) %>% 
-  mutate(totals_tonnes<-totals * 0.001)
-
-coral_export
-```
 # Bar plot of nutrient source

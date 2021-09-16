@@ -49,6 +49,28 @@ ggplot(pop_check, aes(x = reported/1000, y = estimated/1000, col = label)) +
 ggsave(here("figures/Supp_reported_estimated_WWTP_population.png"), dpi =300, width = 8, height = 5,)
 ```
 
+# Estimated WWTP nutrients vs reported
+
+```{r}
+nutri_connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp"))
+```
+
+
+
+```{r}
+ggplot(wwtp_compare2, aes(x = Estimated/1000, y = Actual, col = STP)) +
+  geom_point(size = 2) +
+  facet_wrap(~type, scales = "free") +
+  ylab("Estimated effluent (tonnes)") +
+  xlab("Reported effluent (tonnes)") +
+  stat_smooth(method = "lm", col = "black", linetype = "dashed") +
+  theme_bw() +
+  labs(colour="Wastewater\ntreatment plant")
+```
+```{r}
+ggsave(here("figures/Supp_reported_estimated_WWTP_effluent.png"), dpi =300, width = 8, height = 5,)
+```
+
 
 # Leaching rate/distance from rivers sensitivity plot
 
@@ -203,3 +225,24 @@ ggsave(here("figures/Supp_leach_buffer_sensitivity_line_graph.png"), dpi =300, w
 ```
 
 
+# Relationship between the proportion of hotels and proporiton of visitors in each Tikin
+
+```{r}
+hotel_prop<-read.csv(here("tables/Hotels_rooms_visitors_Fiji.csv"))
+
+cor.test(hotel_prop$Prop_visitors, hotel_prop$Prop_hotels, method = "pearson") # highly positively correlated
+```
+
+```{r}
+ggplot(hotel_prop, aes(x = Prop_visitors, y = Prop_hotels, label = TIKINA)) +
+  geom_point(size = 2) +
+  geom_text_repel() +
+  ylab("Proportion of hotels") +
+  xlab("Proportion of visitors") +
+  stat_smooth(method = "lm", col = "black", linetype = "dashed") +
+  theme_bw() #+
+  #labs(colour="Tikina")
+```
+```{r}
+ggsave(here("figures/Supp_prop_hotels_visitors.png"), dpi =300, width = 8, height = 5,)
+```
