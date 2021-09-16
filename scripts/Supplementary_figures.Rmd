@@ -119,6 +119,7 @@ p_septic_heatmap <- ggplot(data = p_septic_sens, mapping = aes(x = as.factor(buf
 
 p_septic_heatmap
 ```
+
 ```{r}
 n_direct_sens<-read.csv(here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv")) %>% 
   filter(type == "direct") %>% 
@@ -225,7 +226,7 @@ ggsave(here("figures/Supp_leach_buffer_sensitivity_line_graph.png"), dpi =300, w
 ```
 
 
-# Relationship between the proportion of hotels and proporiton of visitors in each Tikin
+# Relationship between the proportion of hotels and proporiton of visitors in each Tikina
 
 ```{r}
 hotel_prop<-read.csv(here("tables/Hotels_rooms_visitors_Fiji.csv"))
