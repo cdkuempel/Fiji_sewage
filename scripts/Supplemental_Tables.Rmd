@@ -1,0 +1,42 @@
+---
+title: "Supplementary Tables"
+author: "Caitie"
+date: "02/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(here)
+```
+
+
+# Tourists by area 
+
+```{r}
+visitors_region<-read_csv(here("raw_data/Tourism/Fiji_tourists_by_region.csv"))
+
+prop_visitors_region<- visitors_region %>% 
+  group_by(Country) %>% 
+  summarise(Total_visitors = sum(Num_visitors, na.rm = T)) %>% 
+  left_join(., visitors_region, by = "Country") %>% 
+  mutate(prop_visitors = Num_visitors/Total_visitors)
+
+visit_supp_table<-prop_visitors_region %>% 
+  dplyr::select(-Total_visitors, -Num_visitors) %>% 
+  pivot_wider(., names_from = "Area", values_from = "prop_visitors")
+
+
+write.csv(visit_supp_table, here("tables/Supp_visitors_by_region.csv"))
+
+```
+
+
+```{r}
+
+```
+
