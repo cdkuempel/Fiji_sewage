@@ -222,8 +222,8 @@ Source: Fiji liquid waste management strategy and action plan 2007
 
 40% of the population uses septic systems
 
-
-*******How was this urban layer created??********
+From Jung et al. IUCN habitat classifications paper
+https://www.nature.com/articles/s41597-020-00599-8.pdf
 ```{r}
 urban<-raster(here("projected_data/Population/Fiji_urban.tif"))
 urban<-projectRaster(urban, crs = t_crs)
