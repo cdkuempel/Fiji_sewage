@@ -1,0 +1,275 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "24/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+#library(startR)
+library(here)
+library(gdalUtils)
+library(tabularaster)
+library(units)
+library(rgdal)
+library(lwgeom)
+library(pbmcapply)
+library(fasterize)
+#devtools::install_github("rspatial/raster")
+library(raster)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Basins
+
+```{r}
+fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(area_km2 = sum(area_km2, na.rm = T))
+
+fiji_basins12<-fiji_basins12 %>% 
+  mutate(ID = seq(from = 1, to =nrow(fiji_basins12), 1)) %>% 
+  st_transform(., crs = t_crs)
+```
+
+# Fiji Coast
+
+```{r}
+coast<-fiji_basins12 %>% 
+  mutate(ID = as.numeric(1)) %>% 
+  group_by(ID) %>% 
+  summarise(area_km2 = sum(area_km2, na.rm = T))
+
+```
+
+# N and P pollution
+
+```{r}
+N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
+
+P_cell_septic<-raster(here("output_data/Nutrients/Septic_P.tif"))
+
+N_cell_direct<-raster(here("output_data/Nutrients/Direct_N.tif"))
+
+P_cell_direct<-raster(here("output_data/Nutrients/Direct_P.tif"))
+
+```
+
+
+# Create buffers
+
+```{r}
+buff<-seq(from = -10, to = -50, by = -10) %>% as.list()
+
+create_buff<-function(x){
+
+# buffer size, here 10 units of shpA coordinates inward
+# (better if projected coordinate system)
+buffer_size <- x
+
+# compute buffered polygons
+shpA_buffered <- st_buffer(coast, buffer_size) 
+
+# remove degenerate polygons
+shpA_remaining <- shpA_buffered[!st_is_empty(shpA_buffered),]
+
+diff<-st_difference(coast, shpA_remaining)
+
+diff_ras<-fasterize(diff, N_cell_septic)
+
+st_write(diff, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".shp"), delete_layer = T)
+
+writeRaster(diff_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".tif"))
+
+}
+
+pbmclapply(buff, create_buff, mc.cores = 5, mc.style = "ETA")
+```
+
+```{r}
+library(tmap)
+
+test<-st_read(here("output_data/Coast/buffers/buffer_coast_-100.shp"))
+
+test2<-st_read(here("output_data/Coast/buffers/buffer_coast_-20.shp"))
+
+tmap_mode("view")
+
+tm_shape(test2) +
+  tm_polygons() 
+```
+
+```{r}
+buff2<-seq(from = -100, to = -500, by = -100) %>% as.list()
+
+
+pbmclapply(buff2, create_buff, mc.cores = 5, mc.style = "ETA")
+```
+
+# Clear memory
+```{r}
+gc()
+```
+
+# Change buffer area to N/P values
+
+```{r}
+buffer_list<-list.files(path = here("output_data/Coast/buffers"), pattern = ".tif", full.names = T)
+
+river_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
+
+buffer_N_P<-function(x,
+                     N_ras,
+                     P_ras,
+                     name){
+  
+  #buffer_shp<-st_read(x)
+  
+  # Read in raster
+  buffer_ras<-raster(x)
+  
+  # Get buffer size
+  num<-as.numeric(regmatches(x, gregexpr("[[:digit:]]+", x)))
+  
+  # Search value for river raster
+  num_search<-paste0(num, ".tif")
+  
+  # Load river raster
+  river_ras<-raster(river_list[grep(pattern = num_search, x = river_list)])
+  
+  # Change NAs to 0 in river raster
+  river_ras2<-river_ras
+  river_ras2[is.na(river_ras2) == T]<- 0
+  
+  # Add together coast and river raster to find overlaps
+  coast_only<-buffer_ras + river_ras2
+  
+  # If value ==2 then we know there is overlap so we remove that cell so we do not double count population. 
+  coast_only2<-coast_only
+  coast_only2[coast_only2 == 2]<-NA
+  
+  #buffer_proj<-st_transform(buffer_shp, t_crs)
+  #st_crs(buffer_proj)<-t_crs
+  
+  #buffer_basin<-st_intersection(fiji_basins12, buffer_proj)
+  
+  # Subset septic values to only coastal cells (excluding river overlap)
+  N<-N_ras * coast_only2
+  P<-P_ras * coast_only2
+  
+  #basin_N<-raster::extract(N_ras, buffer_basin, fun=sum, na.rm=TRUE, df=TRUE)
+  #basin_P<-raster::extract(P_ras, buffer_basin, fun=sum, na.rm=TRUE, df=TRUE)
+  
+  basin_N<-raster::extract(N, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+  basin_P<-raster::extract(P, fiji_basins12, fun=sum, na.rm=TRUE, df=TRUE)
+  
+
+  #basins_nutri_df<-full_join(basin_N, fiji_basins12, by = "ID") %>% 
+  #  rename(N = Septic_N) %>% 
+  #  full_join(., basin_P, by = "ID") %>% 
+  #  rename(P = Septic_P) %>% 
+  #  dplyr::select(ID, N, P, MAIN_BAS)
+  
+   basins_nutri_df<-full_join(basin_N, fiji_basins12, by = "ID") %>% 
+    rename(N = layer) %>% 
+    full_join(., basin_P, by = "ID") %>% 
+    rename(P = layer) %>% 
+    dplyr::select(ID, N, P, MAIN_BAS)
+  
+  
+  write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_N_P_", name,"_per_basin_",num,"_buff.csv"))
+  
+  writeRaster(N, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_N_", name,"_per_basin_",num,"_buff.tif"))
+  
+  writeRaster(P, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_P_", name,"_per_basin_",num,"_buff.tif"))
+
+  }
+
+pbmclapply(buffer_list, buffer_N_P, N_cell_septic, P_cell_septic, "septic", mc.cores = 10, mc.style = "ETA")
+
+pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.cores = 2, mc.style = "ETA")
+
+```
+
+# Calculate N and P for different buffer distances and leaching rates
+
+```{r}
+N_P_buffers<-list.files(here("output_data/Nutrients/buffers"), pattern = "Coast", full.names = T)
+
+sub_N_P_buffers<-N_P_buffers[grep(pattern = ".csv", N_P_buffers)]
+
+leach<-seq(0.1,1,by = 0.1)
+df2<-c()
+
+for(i in 1:length(sub_N_P_buffers)){
+  name<-sub_N_P_buffers[i]
+  buff<-parse_number(name)
+  c<-read.csv(sub_N_P_buffers[i])
+  n<-sum(c$N, na.rm = T)
+  p<-sum(c$P, na.rm = T)
+  
+  for(k in 1:length(leach)){
+    rm(df)
+    print(leach[k])
+    n_leach<-n*leach[k]
+    p_leach<-p*leach[k]
+    
+    df<-data.frame(buffer = buff, leach_rate = leach[k], N = n_leach, P = p_leach)
+    
+    df2<-rbind(df2, df)
+  }
+  
+  
+}
+
+df2<-df2 %>% 
+  mutate(type = "septic")
+
+```
+
+```{r}
+N_P_buffers_direct<-list.files(here("output_data/Nutrients/buffers"), pattern = "direct", full.names = T)
+
+sub_N_P_buffers_direct<-N_P_buffers_direct[grep(pattern = ".csv", N_P_buffers_direct)]
+
+
+df4<-c()
+
+for(i in 1:length(sub_N_P_buffers_direct)){
+  name<-sub_N_P_buffers_direct[i]
+  buff<-parse_number(name)
+  c<-read.csv(sub_N_P_buffers_direct[i])
+  n<-sum(c$N, na.rm = T)
+  p<-sum(c$P, na.rm = T)
+  
+  for(k in 1:length(leach)){
+    rm(df)
+    print(leach[k])
+    n_leach<-n*leach[k]
+    p_leach<-p*leach[k]
+    
+    df<-data.frame(buffer = buff, leach_rate = leach[k], N = n_leach, P = p_leach)
+    
+    df4<-rbind(df4, df)
+  }
+  
+}
+
+df4<- df4 %>% 
+  mutate(type = "direct")
+
+```
+
+```{r}
+done<-rbind(df2, df4)
+
+write.csv(done, here("output_data/Sensitivity/Coastal_leaching_buffer_sensitivity.csv"))
+```
+
