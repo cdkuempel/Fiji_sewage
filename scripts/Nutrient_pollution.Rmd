@@ -39,8 +39,10 @@ N emission (kg/person/year) are estimated based on dietary per capita protein co
 http://www.fao.org/faostat/en/#data/FBS
 
 ```{r}
-Protein_intake<- 73.6 #FAO protein supply g/capita/day 
-plant_protein_intake<-42.23 # FAO 2013 Protein Supply Vegetable products g/capita/day
+Protein_intake<- 71.14 #FAO total protein supply g/capita/day 
+plant_protein_intake<-42.72 # FAO 2013 Protein Supply Vegetable products g/capita/day - this is to account for vegetal protein twice in phosphorus estimates
+
+#Above values from year 2018
 ```
 
 The human N emissions (kg/person/year) are thus
