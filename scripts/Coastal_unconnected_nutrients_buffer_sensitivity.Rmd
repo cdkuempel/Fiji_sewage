@@ -65,6 +65,63 @@ P_cell_direct<-raster(here("output_data/Nutrients/Direct_P.tif"))
 
 # Create buffers
 
+Think of whether I've made these buffers correct....
+
+Another option?
+https://gis.stackexchange.com/questions/327788/addressing-just-the-outermost-cells-in-a-raster
+
+Test this method
+
+```{r}
+#coast_ras<-fasterize(coast, N_cell_septic)
+```
+
+```{r}
+#basins_comb <- st_union(fiji_basins12)
+#basins_comb <- st_cast(basins_comb, "POLYGON")
+#basins_large <- basins_comb[st_area(basins_comb) > #units::set_units(50000,"m^2")]
+#basins_large_sp <- as(basins_large, Class =  "Spatial")
+#outer_coast_ras <- mask(coast_ras, basins_large_sp)
+
+#g_fp <- outer_coast_ras
+#g_fp[!is.na(getValues(g_fp))] <- 1L
+```
+
+```{r}
+outer_cells <- function(x = NULL, diag = TRUE) {
+  focal(x, w = matrix(1, ncol = 3, nrow = 3),
+        fun = function(win) {
+          if(!is.na(win[5])) {
+            return(NA_integer_)
+          }
+
+          if(diag == TRUE) {
+            if(any(!is.na(win[c(-5)]))) { 
+              0L
+            } else {
+              NA_integer_
+            }  
+          } else {
+            if(any(!is.na(win[c(2,4,6,8)]))) {  
+              0L
+            } else {
+              NA_integer_
+            }
+          }
+
+        }
+  )
+}
+```
+
+```{r}
+#rcl <- data.frame('f' = c(1L, NA_integer_), 't' = c(NA_integer_, 1L))
+#g_fp_inv <- subs(g_fp, rcl)
+#g_msk <- outer_cells(g_fp_inv)
+#grey <- g_msk + coast_ras
+```
+
+
 ```{r}
 buff<-seq(from = -10, to = -50, by = -10) %>% as.list()
 
