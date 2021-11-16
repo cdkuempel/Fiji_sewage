@@ -173,5 +173,23 @@ st_write(pour_points, here("output_data/Rivers/Fiji_connected_pourpoints.shp"), 
 #test<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints.shp"))
 
 #Try a different projection?
-#pour_points<-st_transform(pour_points, crs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+pour_points<-st_transform(pour_points, crs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+
+st_crs(pour_points)<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
+
+```{r}
+test<-st_transform(test, crs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
+
+st_crs(test)<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+test<-test %>% 
+  dplyr::select(Name, Tikina, ID, STP, N_final, P_final)
+
+st_write(test, here("output_data/Rivers/Fiji_connected_pourpoints_for_Nick.shp"), delete_layer = T)
+
+```
+```{r}
+test2<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints_for_Nick.shp"))
+```
+
