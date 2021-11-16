@@ -261,8 +261,8 @@ hotel_loc<-hotel_loc %>%
 
 I have a list of licensed hotels in Fiji in 2020. It was sent to me via e-mail from Mereoni W. Kalokalaodrau. For now I use the 2016 data as most of our data is from 2018.
 ```{r}
-hotel_2020<-read_csv("/home/kuempel/Fiji_sewage/raw_data/Tourism/Hotel_list_2020.csv") %>% 
-  dplyr::select(-"#")
+#hotel_2020<-read_csv("/home/kuempel/Fiji_sewage/raw_data/Tourism/Hotel_list_2020.csv") %>% 
+#  dplyr::select(-"#")
 ```
 
 This is a list of licensed hotels in Fiji in 2016. I think this more accurately matches the other data but discuss with group. The data was given to me via e-mail from Helen Sykes
@@ -290,7 +290,7 @@ hotel_rooms<-hotel_rooms %>%
 
 There are quite a few more hotels listed in 2020 than in 2016 - discuss with Stacy what she suggests to do?
 ```{r}
-test<-full_join(hotel_2020, hotel_rooms, by = "Hotel_Name")
+#test<-full_join(hotel_2020, hotel_rooms, by = "Hotel_Name")
 ```
 
 
@@ -321,21 +321,36 @@ cor.test(hotel_rooms_loc$Num_persons, hotel_rooms_loc$Total_rooms, method = "pea
 ```
 
 
-# Hotels per tikina
+# Hotels per tikina/basin
 
 ```{r}
-tikina_hotels<-st_intersection(hotel_rooms_loc, fiji_tik)
+fiji_basins<-st_read(here("projected_data/Basins/Fiji_Basins12_albers.shp"))
 
-tikina_hotels_df<-tikina_hotels %>% 
+fiji_basins<-fiji_basins %>% 
+  dplyr::select(MAIN_BAS) %>% 
+  mutate(basin_area_m2 = as.numeric(st_area(.))) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(basin_area_m2 = sum(basin_area_m2, na.rm = T))
+```
+
+
+```{r}
+tikina_basin<-st_intersection(fiji_tik, fiji_basins) %>% 
+  mutate(area_tik_bas = as.numeric(st_area(.)),
+         prop_area = area_tik_bas/basin_area_m2) 
+
+tikina_bas_hotels<-st_intersection(hotel_rooms_loc, tikina_basin)
+
+tikina_bas_hotels_df<-tikina_hotels %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry)
 
-write.csv(tikina_hotels_df, here("output_data/Tourism/All_hotels_by_tikina.csv"))
+write.csv(tikina_bas_hotels_df, here("output_data/Tourism/All_hotels_by_tikina.csv"))
 
-tikina_hotels_rooms<-tikina_hotels %>% 
+tikina_bas_hotels_rooms<-tikina_bas_hotels %>% 
   filter(!is.na(Total_rooms) == T)
 
-tikina_hotels_add<-tikina_hotels %>% 
+tikina_bas_hotels_add<-tikina_bas_hotels %>% 
   filter(is.na(Total_rooms == T)) %>% 
   dplyr::select(-area)
 
@@ -353,7 +368,7 @@ Remove "The projects collective"
 room_search<-read.csv(here("raw_data/Tourism/Fiji_additional_rooms.csv")) %>% 
   dplyr::select(-Notes, -X.1, -X) 
 
-tikina_add2<-tikina_hotels_add %>% 
+tikina_add2<-tikina_bas_hotels_add %>% 
   filter(!Name == "The Projects Collective") %>% 
   full_join(., room_search, by = c("Name", "ID", "Area", "Num_persons", "Area.1", "Hotel_Name", "TIKINA", "ADM1_NAME")) %>% 
   mutate(Total_rooms = ifelse(is.na(Total_rooms.x) == T, Total_rooms.y, Total_rooms.x)) %>% 
@@ -390,7 +405,7 @@ REMOVED ONE:Yadua Bay Resort vs. Yadua Bay Resort & Villas
 REMOVED ONE: Club Fiji Limited, Wailoaloa Beach, Nadi Bay AND Club Fiji Limited = are these the same??
 
 ```{r}
-tikina_hotels <- rbind(tikina_hotels_rooms, tikina_add2) %>% 
+tikina_hotels <- rbind(tikina_bas_hotels_rooms, tikina_add2) %>% 
   filter(!Name == "Tubakula Beach Bungalows",
          !Name == "Basilico Italian Restaurant at Radisson Blu Resort, Fiji",
          !Name == "Ocean Studio Fiji",
@@ -426,6 +441,7 @@ st_write(tikina_hotels, here("output_data/Tourism/Final_hotel_room_map.shp"), ap
 
 # Hotels per area
 
+********Double check********
 ```{r}
 hotels_per_area<-tikina_hotels %>% 
   group_by(Area.1) %>% 
@@ -433,8 +449,35 @@ hotels_per_area<-tikina_hotels %>%
   as.data.frame() %>% 
   dplyr::select(-geometry)
 
+hotels_per_basin<-tikina_hotels %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(Total_hotels = length(unique(Name))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+hotels_per_tikina<-tikina_hotels %>% 
+  group_by(TIKINA) %>% 
+  summarise(Total_hotels = length(unique(Name))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+hotels_per_tikina_basin<-tikina_hotels %>% 
+  group_by(TIKINA, MAIN_BAS) %>% 
+  summarise(Total_hotels = length(unique(Name))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+hotels_per_all<-tikina_hotels %>% 
+  group_by(TIKINA, MAIN_BAS, Area.1) %>% 
+  summarise(Total_hotels = length(unique(Name))) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+```
+
+```{r}
 prop_hotels_tik<-tikina_hotels %>% 
-  group_by(TIKINA, Area.1) %>% 
+  group_by(TIKINA, Area.1, MAIN_BAS) %>% 
   summarise(Num_hotels = length(unique(Name))) %>% 
   left_join(., hotels_per_area, by = "Area.1") %>% 
   mutate(Prop_hotels = Num_hotels/Total_hotels) %>% 
@@ -442,38 +485,68 @@ prop_hotels_tik<-tikina_hotels %>%
   dplyr::select(-geometry) 
 
 test<-prop_hotels_tik %>% 
-  filter(Area.1 == "Coral Coast")
+  filter(Area.1 == "Others")
 ```
 
-# Rooms per area
+# Rooms per area - don't use this anymore, distribute on hotels
 ```{r}
-rooms_area<-tikina_hotels %>% 
-  group_by(Area.1) %>% 
-  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry)
+#rooms_area<-tikina_hotels %>% 
+#  filter(!is.na(Total_rooms)) %>% 
+#  group_by(Area.1) %>% 
+#  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
 
-persons_area<-tikina_hotels %>% 
-  group_by(Area.1) %>% 
-  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry)
+#rooms_basin<-tikina_hotels %>% 
+#  filter(!is.na(Total_rooms)) %>% 
+#  group_by(MAIN_BAS) %>% 
+#  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
 
+#rooms_tikina<-tikina_hotels %>% 
+#  group_by(TIKINA) %>% 
+#  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
+
+#persons_area<-tikina_hotels %>% 
+#  filter(!is.na(Num_persons)) %>% 
+#  group_by(Area.1) %>% 
+#  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
+
+#persons_basins<-tikina_hotels %>% 
+#  filter(!is.na(Num_persons)) %>% 
+#  group_by(MAIN_BAS) %>% 
+#  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
+
+#persons_tikina<-tikina_hotels %>% 
+#  filter(!is.na(Num_persons)) %>% 
+#  group_by(TIKINA) %>% 
+#  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry)
+
+```
+
+NB: Some hotels do not have room/person information which creates a discrepency in proportions between hotels/rooms/people.
+
+```{r}
 prop_occupancy_tik<- tikina_hotels %>% 
-  group_by(TIKINA, Area.1) %>% 
+  group_by(TIKINA, Area.1, MAIN_BAS) %>% 
   summarise(Tik_rooms = sum(Total_rooms, na.rm = T),
             Tik_visitors = sum(Num_persons, na.rm = T)) %>% 
   left_join(., rooms_area, by = "Area.1") %>% 
   left_join(., persons_area, by = "Area.1") %>% 
   mutate(Prop_rooms = Tik_rooms/Total_rooms,
             Prop_visitors = Tik_visitors/Total_persons) %>% 
-  left_join(., prop_hotels_tik, by = c("TIKINA", "Area.1")) %>% 
+  left_join(., prop_hotels_tik, by = c("TIKINA", "MAIN_BAS", "Area.1")) %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
-  rename(Area = Area.1)
-
-test<-prop_occupancy_tik %>% 
-  filter(Area == "Coral Coast")
+  dplyr::select(-geometry) 
 
 write.csv(prop_occupancy_tik, here("tables/Hotels_rooms_visitors_Fiji.csv"))
 
@@ -481,25 +554,23 @@ write.csv(prop_occupancy_tik, here("tables/Hotels_rooms_visitors_Fiji.csv"))
 
 Test correlations
 ```{r}
-cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_visitors, method = "pearson") # highly positively correlated
-cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
-cor.test(prop_occupancy_tik$Prop_visitors, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
+#cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_visitors, method = "pearson") # highly positively correlated
+#cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
+#cor.test(prop_occupancy_tik$Prop_visitors, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
 ```
-
-# For now I distribute based on number of hotels
-
-Seems to work now.
+# Distribute nutrients based on number of hotels within each Tikina/Watershed/Tourist Area
 
 ```{r}
-tik_tourist_nutrients<-full_join(fiji_tik_nutrients, prop_occupancy_tik, by = c("TIKINA", "Area")) %>%
+tik_tourist_nutrients<-full_join(fiji_tik_nutrients, prop_hotels_tik, by = c("TIKINA", "Area" = "Area.1")) %>%
   mutate(Tourist_N = Total_N * Prop_hotels,
          Tourist_P = Total_P * Prop_hotels) 
 
-test<-tik_tourist_nutrients %>% 
-  filter(Area == "Coral Coast")
 
-plot(tik_tourist_nutrients["Tourist_N"])
-plot(tik_tourist_nutrients["Tourist_P"])
+test<-tik_tourist_nutrients %>% 
+  filter(Area == "Coral Coast") 
+
+#plot(tik_tourist_nutrients["Tourist_N"])
+#plot(tik_tourist_nutrients["Tourist_P"])
 
 tik_tourist_nutrients_df<-tik_tourist_nutrients %>% 
   as.data.frame() %>% 
@@ -510,8 +581,6 @@ write.csv(tik_tourist_nutrients_df, here("output_data/Tourism/Tourist_nutrients_
 round(sum(visitor_nutrients_region2$Total_N, na.rm = T),1) == round(sum(tik_tourist_nutrients$Tourist_N, na.rm = T), 1)
 round(sum(visitor_nutrients_region2$Total_P, na.rm = T),1) == round(sum(tik_tourist_nutrients$Tourist_P, na.rm = T),1)
 ```
-
-
 # Treatment levels
 
 From Fiji National Watewater Report 2007
@@ -532,70 +601,106 @@ Septic system = 10% (same as primary treatment)
 ***********Suva doesn't seem to come up here - need to fix this*************
 
 ```{r}
-hotel_treatment<-tikina_hotels %>%
-  filter(!is.na(Total_rooms) == T) %>% 
-  mutate(treatment_level = case_when(Total_rooms>100 ~ "Secondary",
-                                     Total_rooms<=100 & Total_rooms>=30 ~ "Primary",
-                                     Total_rooms<30 ~ "Septic"))
+
+# If rooms are missing for a Tikina/basin we gap fill them
+
+rooms_na<-tikina_hotels %>% 
+  filter(is.na(Total_rooms) == T)
+
+avg_rooms<-tikina_hotels %>% 
+  group_by(TIKINA) %>% 
+  summarise(avg_rooms = round(mean(Total_rooms, na.rm = T), 0)) %>% 
+  dplyr::select(-geometry) %>% 
+  as.data.frame()
+
+tikina_hotels2<-tikina_hotels %>% 
+  full_join(., avg_rooms, by = "TIKINA") %>% 
+  mutate(Total_rooms2 = ifelse(is.na(Total_rooms) == T, avg_rooms, Total_rooms))
+
+test<-tikina_hotels2 %>% 
+  filter(is.na(Total_rooms2) == T)
+
+hotel_treatment<-tikina_hotels2 %>%
+  filter(!is.na(Total_rooms2) == T) %>% 
+  mutate(treatment_level = case_when(Total_rooms2>100 ~ "Secondary",
+                                     Total_rooms2<=100 & Total_rooms2>=30 ~ "Primary",
+                                     Total_rooms2<30 ~ "Septic"))
+
+test<-hotel_treatment %>% 
+  filter(is.na(treatment_level) == T)
 
 hotel_treatment_df<-hotel_treatment %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry)
+  as.data.frame() 
 
 write.csv(hotel_treatment, here("output_data/Tourism/Hotels_treatment_type.csv"))
 
-hotels_per_area2<-hotel_treatment %>% 
-  group_by(TIKINA) %>% 
-  summarise(Total_hotels = length(unique(Name)),
-            Total_rooms = sum(Total_rooms,na.rm = T)) %>% 
+```
+
+
+# Determine treatment levels within each Tikina/watershed
+
+```{r}
+tikina_bas_treat <- hotel_treatment %>%
+  dplyr::select(-geometry.x, -geometry.y) %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry)
+  count(TIKINA, MAIN_BAS, Area.1, treatment_level, sort = TRUE) %>% 
+  rename(tik_bas_n = n) %>% 
+  filter(!is.na(MAIN_BAS) == T) # There is one hotel that is not within a basin
 
-tikina_hotels_treatment2<-hotel_treatment %>% 
-  group_by(TIKINA, treatment_level) %>% 
-  summarise(rooms = sum(Total_rooms, na.rm = T)) %>% 
-  left_join(., hotels_per_area2, by = "TIKINA") %>% 
-  mutate(prop_treatment = rooms/Total_rooms) %>% 
+all_treat <- hotel_treatment %>% 
+  dplyr::select(-geometry.x, -geometry.y) %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry)
+  count(Area.1, sort = TRUE) %>% 
+  rename(total_n = n)
 
-test<-hotel_treatment %>% 
-  group_by(TIKINA) %>% 
-  summarise(Primary = length(which(treatment_level == "Primary")),
-            Secondary = length(which(treatment_level == "Secondary")),
-            Septic = length(which(treatment_level == "Septic"))) %>% 
-  left_join(., hotels_per_area2, by = "TIKINA") %>% 
-  mutate(prop_primary = Primary/Total_hotels,
-         prop_secondary = Secondary/Total_hotels,
-         prop_septic = Septic/Total_hotels) %>% 
-  #rename(Area = Area.1) %>% 
-    as.data.frame() %>% 
-  dplyr::select(-geometry)
+prop_treatment<-full_join(tikina_bas_treat, all_treat) %>% 
+  mutate(prop_treat = tik_bas_n/total_n)
 
+
+test<-prop_treatment %>% 
+  filter(Area.1 == "Coral Coast")
+
+```
+
+
+```{r}
 tourist_treated<-tik_tourist_nutrients %>% 
-  full_join(., tikina_hotels_treatment2, by = "TIKINA") %>% 
-  dplyr::select(TIKINA, Area, Tourist_N, Tourist_P, treatment_level, prop_treatment) %>%
-mutate(Treated_N = ifelse(treatment_level == "Primary", Tourist_N * prop_treatment * 0.9,
-                          ifelse(treatment_level == "Secondary", Tourist_N * prop_treatment * 0.6,
-                              ifelse(treatment_level == "Septic", Tourist_N * prop_treatment * 0.9, NA))),
-       Treated_P = ifelse(treatment_level == "Primary", Tourist_P * prop_treatment * 0.9,
-                          ifelse(treatment_level == "Secondary", Tourist_P * prop_treatment * 0.55,
-                              ifelse(treatment_level == "Septic", Tourist_P * prop_treatment * 0.9, NA)))) %>% 
-  dplyr::select(TIKINA, Area, treatment_level, Tourist_N, Tourist_P, Treated_N, Treated_P) 
-       
+  rename(Area.1 = Area) %>% 
+  full_join(., prop_treatment, by = c("TIKINA", "MAIN_BAS", "Area.1")) %>% 
+  dplyr::select(TIKINA, Area.1, MAIN_BAS, Total_N, Total_P, Tourist_N, Tourist_P, treatment_level, prop_treat) %>% 
+  mutate(Type_N = Total_N * prop_treat, 
+         Type_P = Total_P * prop_treat)
+
+```
+
+Check to make sure all is working correctly
+
+```{r}
+test_nutrients <- tik_tourist_nutrients_df %>% 
+  filter(Area == "Coral Coast")
+
+sum(test_nutrients$Tourist_N, na.rm = T)
+
+test_treat<- tourist_treated %>% 
+  filter(Area.1 == "Coral Coast")
+
+sum(test_treat$Type_N, na.rm = T)
+```
 
 
-     #  (Tourist_N * prop_primary) * 0.9,
-    #     Primary_P = (Tourist_P * prop_primary) * 0.9,
-    #     Secondary_N = (Tourist_N * prop_secondary) *0.6,
-    #     Secondary_P = (Tourist_P * prop_secondary)* 0.55,
-    #     Septic_N = (Tourist_N * prop_septic) *0.9,
-    #     Septic_P = (Tourist_P * prop_septic) * 0.9,
-    #     Connected_N = Primary_N + Secondary_N,
-    #     Connected_P = Primary_P + Secondary_P) 
+```{r}
 
-test<-tourist_treated %>% 
-  filter(Area == 'Coral Coast') 
+tourist_treated_final<-tourist_treated %>% 
+  mutate(Treated_N = ifelse(treatment_level == "Primary", Type_N * prop_treat * 0.9,
+                          ifelse(treatment_level == "Secondary", Type_N * prop_treat * 0.6,
+                              ifelse(treatment_level == "Septic", Type_N * prop_treat * 0.9, NA))),
+       Treated_P = ifelse(treatment_level == "Primary", Type_P * prop_treat * 0.9,
+                          ifelse(treatment_level == "Secondary", Type_P * prop_treat * 0.55,
+                              ifelse(treatment_level == "Septic", Type_P * prop_treat * 0.9, NA)))) %>% 
+  dplyr::select(TIKINA, MAIN_BAS, Area.1, treatment_level, prop_treat, Tourist_N, Tourist_P, Type_N, Type_P, Treated_N, Treated_P) 
+
+test<-tourist_treated_final %>% 
+  filter(Area.1 == "Coral Coast") 
 
 tourist_treated_df<-tourist_treated %>% 
   as.data.frame() %>% 
@@ -605,49 +710,11 @@ write.csv(tourist_treated_df, here("output_data/Tourism/Treated_tourist_nutrient
 ```
 
 
-
-# Nutrients per basin
-
+CHECK AND MAKE SURE IT'S OK THAT THESE ARE EXCLUDED
 ```{r}
-#basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp")) %>% 
-#  st_transform(., crs = t_crs) 
-
-#fiji_tik<-st_make_valid(fiji_tik)
-#basins12<-st_make_valid(basins12)
-
-#fiji_basins<-st_crop(basins12, fiji_tik)
-
-#st_write(fiji_basins, here("projected_data/Basins/Fiji_Basins12_albers.shp"))
-
-fiji_basins<-st_read(here("projected_data/Basins/Fiji_Basins12_albers.shp"))
-
-fiji_basins<-fiji_basins %>% 
-  dplyr::select(MAIN_BAS) %>% 
-  mutate(basin_area_m2 = as.numeric(st_area(.))) %>% 
-  group_by(MAIN_BAS) %>% 
-  summarise(basin_area_m2 = sum(basin_area_m2, na.rm = T))
+test_final<-tourist_treated_final %>% 
+  filter(is.na(Treated_N) == T)
 ```
-
-```{r}
-tikina_area<-st_intersection(fiji_tik, fiji_basins) %>% 
-  mutate(area_tik_bas = as.numeric(st_area(.)),
-         prop_area = area_tik_bas/basin_area_m2) 
-
-#basin_area<-st_intersection(fiji_basins, basin_nutrients) %>% 
-#  mutate(area_basin = as.numeric(st_area(.))) %>% 
-#  group_by(MAIN_BAS) %>% 
-#  summarise(area_basin = sum(area_basin, na.rm = T))
-
-final_tourist_nutrients<-tikina_area %>% 
-  full_join(., tourist_treated_df, by = c("TIKINA", "Area")) %>% 
-  mutate(Treated_N_basin = Treated_N * prop_area,
-         Treated_P_basin = Treated_P * prop_area)
-
-
-st_write(final_tourist_nutrients, here("output_data/Tourism/Tourism_nutrients_by_basin.shp"))
-
-```
-
 
 
 
