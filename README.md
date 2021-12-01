@@ -9,9 +9,10 @@ Code Workflow
 2. N_P_Removal_by_STP (check which one)
 3. Nutrient_pollution.Rmd
 4. Unconnected_nutrients_buffer_sensitivity.Rmd
-5. STP_pourpoints.Rmd
-6. Connected_nutrients_at_pourpoints.Rmd
-7. Unconnected_nutrients_pourpoints.Rmd
-8. Tourism_nutrient_pollution.Rmd
+5. Coast_unconnected_nutrients_buffer_sensitivity.Rmd
+6. STP_pourpoints.Rmd
+7. Connected_nutrients_at_pourpoints.Rmd
+8. Unconnected_nutrients_pourpoints.Rmd
+9. Tourism_nutrient_pollution.Rmd
 
 
