@@ -27,8 +27,6 @@ library(tabularaster)
 library(units)
 library(lwgeom)
 
-source(here("scripts/plume_functions.R"))
-
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
 
@@ -69,13 +67,6 @@ sub_fiji_rivers<- rivers_proj %>%
 ```
 
 ```{r}
-#basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp"))
-
-#basins12_proj<-st_transform(basins12, st_crs(sub_fiji_rivers))
-```
-
-
-```{r}
 pnts<-st_endpoint(sub_fiji_rivers) 
 pnts_xy<-st_coordinates(pnts) 
 
@@ -85,34 +76,6 @@ data_per_river<-cbind(sub_fiji_rivers, pnts_xy) %>%
   as.data.frame() %>% 
   dplyr::select(-geometry)
 
-#test<-st_transform(sub_fiji_rivers, st_crs(stp_crs))
-#test2<-st_transform(basins12, st_crs(stp_crs))
-
-#test$cnt2 = stringr::str_count(test$geometry, ",")
-#nc3 = filter(test, cnt2>1)
-#test2$cnt2<-stringr::str_count(test2$geometry, ",")
-#nc4<-filter(test2, cnt2>1)
-
-#data_per_river<-st_join(sub_fiji_rivers, basins12)
-#data_per_river<-st_join(nc3, nc4)
-#data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
-
-#data_per_river<-st_transform(data_per_river, st_crs(rivers)) %>% 
-#  rename(riv_dis = dis_m3_pyr.x,
-#         bas_dis = dis_m3_pyr.y)
-
-#pnts<-st_transform(pnts, st_crs(rivers))
-
-#pb <- txtProgressBar(min = 0, max = nrow(data_per_river), style = 3) 
-#pour_points<-list()
-#for (i in 1:nrow(data_per_river)){
-#  setTxtProgressBar(pb, i)
-#  points_line<- st_cast(data_per_river[i,], "POINT")
-#  pour_points[[i]]<- points_line[nrow(points_line),]
-#  data_per_river[i,"pp_x"]<-extent(pour_points[[i]])[1]
-#  data_per_river[i,"pp_y"]<-extent(pour_points[[i]])[3]
-#  
-#}
 ```
 
 
@@ -158,11 +121,6 @@ pp_nutri<-data_per_river %>%
 pour_points<-pp_nutri
 pour_points<-left_join(stp_pp_proj, stp, by = "ID") %>% 
   st_transform(., crs= t_crs) 
-#coordinates(pour_points) <- ~pp_x+pp_y
-#pour_points<-st_as_sf(pour_points)
-#pour_points<-pour_points %>% 
-#  dplyr::select(HYRIV_ID, STP.x, STP.y,ID, N, P) %>% 
-#  filter(!is.na(N) == T)
 
 st_crs(pour_points)<-t_crs
 
@@ -170,26 +128,11 @@ pour_points<-st_transform(pour_points, crs = t_crs)
 
 st_write(pour_points, here("output_data/Rivers/Fiji_connected_pourpoints.shp"), delete_layer = T)
 
-#test<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints.shp"))
-
 #Try a different projection?
 pour_points<-st_transform(pour_points, crs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
 
 st_crs(pour_points)<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
 
-```{r}
-test<-st_transform(test, crs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
 
-st_crs(test)<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-
-test<-test %>% 
-  dplyr::select(Name, Tikina, ID, STP, N_final, P_final)
-
-st_write(test, here("output_data/Rivers/Fiji_connected_pourpoints_for_Nick.shp"), delete_layer = T)
-
-```
-```{r}
-test2<-st_read(here("output_data/Rivers/Fiji_connected_pourpoints_for_Nick.shp"))
-```
 
