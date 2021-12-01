@@ -182,10 +182,7 @@ buffer_list<-list.files(path = here("output_data/Coast/buffers"), pattern = ".ti
 
 river_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
 
-buffer_N_P<-function(x,
-                     N_ras,
-                     P_ras,
-                     name){
+buffer_N_P<-function(x){
   
   #buffer_shp<-st_read(x)
   
@@ -249,10 +246,23 @@ buffer_N_P<-function(x,
 
   }
 
-pbmclapply(buffer_list, buffer_N_P, N_cell_septic, P_cell_septic, "septic", mc.cores = 10, mc.style = "ETA")
+```
 
-pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.cores = 2, mc.style = "ETA")
+```{r}
+N_ras<-N_cell_septic
+P_ras<-P_cell_septic
+name<-"septic"
 
+pbmclapply(buffer_list, buffer_N_P, mc.cores = 10, mc.style = "ETA")
+```
+
+
+```{r}
+N_ras<-N_cell_direct
+P_ras<-P_cell_direct
+name<-"direct"
+
+pbmclapply(buffer_list, buffer_N_P, mc.cores = 2, mc.style = "ETA")
 ```
 
 # Calculate N and P for different buffer distances and leaching rates
@@ -262,13 +272,15 @@ N_P_buffers<-list.files(here("output_data/Nutrients/buffers"), pattern = "Coast"
 
 sub_N_P_buffers<-N_P_buffers[grep(pattern = ".csv", N_P_buffers)]
 
+sub_N_P_buffers_septic<-sub_N_P_buffers[grep(pattern = "septic", sub_N_P_buffers)]
+
 leach<-seq(0.1,1,by = 0.1)
 df2<-c()
 
-for(i in 1:length(sub_N_P_buffers)){
-  name<-sub_N_P_buffers[i]
+for(i in 1:length(sub_N_P_buffers_septic)){
+  name<-sub_N_P_buffers_septic[i]
   buff<-parse_number(name)
-  c<-read.csv(sub_N_P_buffers[i])
+  c<-read.csv(sub_N_P_buffers_septic[i])
   n<-sum(c$N, na.rm = T)
   p<-sum(c$P, na.rm = T)
   
@@ -292,10 +304,7 @@ df2<-df2 %>%
 ```
 
 ```{r}
-N_P_buffers_direct<-list.files(here("output_data/Nutrients/buffers"), pattern = "direct", full.names = T)
-
-sub_N_P_buffers_direct<-N_P_buffers_direct[grep(pattern = ".csv", N_P_buffers_direct)]
-
+sub_N_P_buffers_direct<-sub_N_P_buffers[grep(pattern = "direct", sub_N_P_buffers)]
 
 df4<-c()
 
