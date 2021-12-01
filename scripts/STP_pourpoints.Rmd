@@ -32,39 +32,41 @@ library(lwgeom)
 
 ```{r}
 #Intersect basins with tikina
+fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  mutate(bas_area_m2 = st_area(.),
+         bas_area_km2 = drop_units(bas_area_m2)/1000000,
+         ID = seq.int(nrow(.)))
+
+stp_crs<-st_crs(fiji_basins12)
+
 fiji_tik<-st_read("/home/kuempel/Waste_water_data/Fiji/Tikina/fji_polbnda_adm3_tikina.shp") %>% 
   rename(TIKINA = ADM3_NAME,
          PROVINCE = ADM2_NAME,
          TID = FBOS_TID,
          PID = FBOS_PID)
 
-fiji_tik_merc<-st_transform(fiji_tik, crs(stp_crs)) %>% 
+fiji_tik_merc<-st_transform(fiji_tik, stp_crs) %>% 
   st_make_valid()
-
-fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
-  mutate(bas_area_m2 = st_area(.),
-         bas_area_km2 = drop_units(bas_area_m2)/1000000,
-         ID = seq.int(nrow(.)))
 
 fiji_basins_tik<-st_intersection(fiji_tik_merc, fiji_basins12) %>% 
   mutate(bas_tik_area_m2 = st_area(.),
          bas_tik_area_km2 = drop_units(bas_tik_area_m2)/1000000,
          ID = seq.int(nrow(.)))
 
-fiji_rivers<-st_read(here("raw_data/Fiji/Rivers/Fiji_RiverATLAS.shp"))
+fiji_rivers<-st_read(here("raw_data/Rivers/Fiji_RiverATLAS.shp"))
 
-fiji_rivers<-st_transform(fiji_rivers, crs(stp_crs))
+fiji_rivers<-st_transform(fiji_rivers, stp_crs)
 
 fiji_tik_rivers<-st_intersection(fiji_tik_merc, fiji_rivers)
 
 fiji_pourpoints<-st_read(here("raw_data/Rivers/Fiji_RiverATLAS_river_ends.shp"))
                          
-fiji_pourpoints<-st_transform(fiji_pourpoints, crs(stp_crs))
+fiji_pourpoints<-st_transform(fiji_pourpoints, stp_crs)
 
 #fiji_tik_pp<-st_intersection(fiji_pourpoints, fiji_tik_merc)
 
 rivers<-st_read(here("raw_data/Rivers/RiverATLAS_v10_shp/RiverATLAS_v10_au.shp"))
-rivers<-st_transform(rivers, st_crs(stp_crs))
+rivers<-st_transform(rivers, stp_crs)
 
 #test<-rivers_merc %>% 
  # filter(HYRIV_ID == 50474738)
@@ -75,7 +77,7 @@ rivers<-st_transform(rivers, st_crs(stp_crs))
 test<-readOGR("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml") %>% 
   st_as_sf()
 
-test<-st_transform(test, st_crs(stp_crs))
+test<-st_transform(test, stp_crs)
 
 test2<-st_intersection(test, fiji_tik_merc)
 ```
@@ -295,5 +297,5 @@ stp_all_df<-stp_all %>%
   as.data.frame() %>% 
   dplyr::select(-geometry)
 
-st_write(stp_all,here("output_data/Sewage_plants/All_STP_outfalls_Fiji.shp"))
+st_write(stp_all,here("output_data/Sewage_plants/All_STP_outfalls_Fiji.shp"), delete_layer = T)
 ```
