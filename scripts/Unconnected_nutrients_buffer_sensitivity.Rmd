@@ -112,11 +112,10 @@ gc()
 ```{r}
 buffer_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
 
+buffer_list2<-buffer_list[grep(buffer_list, pattern = ".tif$")]
 
-buffer_N_P<-function(x,
-                     N_ras,
-                     P_ras,
-                     name){
+
+buffer_N_P<-function(x){
   
   buffer_ras<-raster(x)
   num<-as.numeric(regmatches(x, gregexpr("[[:digit:]]+", x)))
@@ -139,24 +138,43 @@ buffer_N_P<-function(x,
 
   }
 
-pbmclapply(buffer_list, buffer_N_P, N_cell_septic, P_cell_septic, "septic", mc.cores = 3, mc.style = "ETA")
-
-pbmclapply(buffer_list, buffer_N_P, N_cell_direct, P_cell_direct, "direct", mc.cores = 2, mc.style = "ETA")
-
 ```
+
+
+```{r}
+N_ras<-N_cell_septic
+P_ras<-P_cell_septic
+name<-"septic"
+
+pbmclapply(buffer_list2, buffer_N_P, mc.cores = 5, mc.style = "ETA")
+```
+
+```{r}
+N_ras<-N_cell_direct
+P_ras<-P_cell_direct
+name<-"direct"
+
+pbmclapply(buffer_list2, buffer_N_P, mc.cores = 5, mc.style = "ETA")
+```
+
 
 # Calculate N and P for different buffer distances and leaching rates
 
 ```{r}
 N_P_buffers<-list.files(here("output_data/Nutrients/buffers"), pattern = "septic", full.names = T)
 
+N_P_buffers2<-N_P_buffers[grep(N_P_buffers, pattern = "Coast")]
+
+N_P_buffers3<-N_P_buffers[!N_P_buffers %in% N_P_buffers2]
+
 leach<-seq(0.1,1,by = 0.1)
 df2<-c()
 
-for(i in 1:length(N_P_buffers)){
-  name<-N_P_buffers[i]
+for(i in 1:length(N_P_buffers3)){
+  name<-N_P_buffers3[i]
   buff<-parse_number(name)
-  c<-read.csv(N_P_buffers[i])
+  print(buff)
+  c<-read.csv(N_P_buffers3[i])
   n<-sum(c$N, na.rm = T)
   p<-sum(c$P, na.rm = T)
   
@@ -177,14 +195,22 @@ for(i in 1:length(N_P_buffers)){
 df2<-df2 %>% 
   mutate(type = "septic")
 
+```
+
+
+```{r}
 N_P_buffers_direct<-list.files(here("output_data/Nutrients/buffers"), pattern = "direct", full.names = T)
+
+N_P_buffers_direct2<-N_P_buffers_direct[grep(N_P_buffers_direct, pattern = "Coast")]
+
+N_P_buffers_direct3<-N_P_buffers_direct[!N_P_buffers_direct %in% N_P_buffers_direct2]
 
 df4<-c()
 
-for(i in 1:length(N_P_buffers_direct)){
-  name<-N_P_buffers_direct[i]
+for(i in 1:length(N_P_buffers_direct3)){
+  name<-N_P_buffers_direct3[i]
   buff<-parse_number(name)
-  c<-read.csv(N_P_buffers_direct[i])
+  c<-read.csv(N_P_buffers_direct3[i])
   n<-sum(c$N, na.rm = T)
   p<-sum(c$P, na.rm = T)
   
@@ -203,7 +229,10 @@ for(i in 1:length(N_P_buffers_direct)){
 
 df4<- df4 %>% 
   mutate(type = "direct")
+```
 
+
+```{r}
 done<-rbind(df2, df4)
 
 write.csv(done, here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv"))
