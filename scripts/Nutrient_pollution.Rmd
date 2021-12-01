@@ -155,8 +155,8 @@ Make sewage treatment into a raster
 This takes awhile - avoid if possible
 
 ```{r}
-N_stp_removal<-subs(stp_ras, N_removal, by= "ID", which="nutri_left")
-P_stp_removal<-subs(stp_ras, P_removal, by= "ID", which="nutri_left")
+N_stp_removal<-subs(stp_ras, N_removal, by= "ID", which="N_left")
+P_stp_removal<-subs(stp_ras, P_removal, by= "ID", which="P_left")
 ```
 
 ```{r}
@@ -173,13 +173,13 @@ P_stp_removal<-raster(here("output_data/Sewage_plants/P_stp_removal.tif"), overw
 Account for treatment
 
 ```{r}
-#test<-N_stp_removal
-#test[is.na(test) == T]<-1
-#test[test<1]<-0
+test<-N_stp_removal
+test[is.na(test) == T]<-1
+test[test<1]<-0
 
-#test2<-P_stp_removal
-#test2[is.na(test2) == T]<-1
-#test2[test2<1]<-0
+test2<-P_stp_removal
+test2[is.na(test2) == T]<-1
+test2[test2<1]<-0
 
 N_connected<-N_cell * N_stp_removal
 
