@@ -1,0 +1,128 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "01/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load packages
+
+```{r}
+library(tidyverse)
+library(sf)
+library(here)
+library(tabularaster)
+#devtools::install_github("rspatial/raster")
+library(raster)
+library(maptools)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+
+# Select buffer size to use
+
+We use 50 meters as this is the distance used for septic buffer
+
+```{r}
+coast_septic_N<-raster(here("output_data/Nutrients/buffers/Coast_N_septic_per_basin_50_buff.tif"))
+
+coast_septic_P<-raster(here("output_data/Nutrients/buffers/Coast_P_septic_per_basin_50_buff.tif"))
+  
+coast_direct_N<-raster(here("output_data/Nutrients/buffers/Coast_N_direct_per_basin_50_buff.tif"))
+
+coast_direct_P<-raster(here("output_data/Nutrients/buffers/Coast_P_direct_per_basin_50_buff.tif"))
+```
+
+
+# Identify pourpoint locations
+
+Center of raster cells are pourpoint locations
+
+```{r}
+#Get XY coordinates of cells
+septic_N_xy<-as_tibble(coast_septic_N, values = TRUE, xy = TRUE)
+septic_P_xy<-as_tibble(coast_septic_P, values = TRUE, xy = TRUE)
+direct_N_xy<-as_tibble(coast_direct_N, values = TRUE, xy = TRUE)
+direct_P_xy<-as_tibble(coast_direct_P, values = TRUE, xy = TRUE)
+```
+
+```{r}
+#Subset to only include cells that have nutrient values
+sub_septic_N<-septic_N_xy %>% 
+  filter(!is.na(cellvalue) == T) %>% 
+  rename(septic_N = cellvalue)
+
+sub_septic_P<-septic_P_xy %>% 
+  filter(!is.na(cellvalue) == T)%>% 
+  rename(septic_P = cellvalue)
+
+sub_direct_N<-direct_N_xy %>% 
+  filter(!is.na(cellvalue) == T)%>% 
+  rename(direct_N = cellvalue)
+
+sub_direct_P<-direct_P_xy %>% 
+  filter(!is.na(cellvalue) == T) %>% 
+  rename(direct_P = cellvalue)
+```
+
+```{r}
+#Join septic N and P and direct N and P
+
+septic<-full_join(sub_septic_N, sub_septic_P)
+direct<-full_join(sub_direct_N, sub_direct_P)
+```
+
+```{r}
+#Create shapefile
+septic_shp<-septic
+coordinates(septic_shp)<-~x+y
+crs(septic_shp)<-t_crs
+septic_shp<-spTransform(septic_shp, t_crs)
+septic_sf<-st_as_sf(septic_shp)
+septic_sf<-st_transform(septic_sf, crs = t_crs)
+
+```
+
+```{r}
+#Create shapefile
+direct_shp<-direct
+coordinates(direct_shp)<-~x+y
+crs(direct_shp)<-t_crs
+direct_shp<-spTransform(direct_shp, t_crs)
+direct_sf<-st_as_sf(direct_shp)
+direct_sf<-st_transform(direct_sf, crs = t_crs)
+```
+
+```{r}
+#Snap pourpoints to coastline
+#Don't do this for now - think it is done in the plume function
+```
+# Remove very small values?
+
+Tuholske et al. remove pourpoints <1g N
+
+Values are currently in kg so none meet this criteria
+
+```{r}
+min(septic_sf$septic_N)
+min(septic_sf$septic_P)
+min(direct_sf$direct_N)
+min(direct_sf$direct_P)
+```
+
+
+# Save nutrients at pourpoints
+
+This assumes no additional nutrient removal during leaching.
+
+```{r}
+st_write(septic_sf, here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp"), delete_layer = TRUE)
+
+st_write(direct_sf, here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp"), delete_layer = TRUE)
+```
+
