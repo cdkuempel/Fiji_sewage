@@ -126,12 +126,8 @@ st_crs(pour_points)<-t_crs
 
 pour_points<-st_transform(pour_points, crs = t_crs)
 
-st_write(pour_points, here("output_data/Rivers/Fiji_connected_pourpoints.shp"), delete_layer = T)
+st_write(pour_points, here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp"), delete_layer = T)
 
-#Try a different projection?
-pour_points<-st_transform(pour_points, crs = "+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs")
-
-st_crs(pour_points)<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
 
 

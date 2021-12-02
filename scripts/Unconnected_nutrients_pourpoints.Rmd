@@ -100,28 +100,6 @@ data_per_river2<-cbind(basin_rivers, pnts_xy) %>%
          pp_y = Y) %>% 
   dplyr::select(HYRIV_ID, NEXT_DOWN, MAIN_RIV, HYBAS_ID, MAIN_BAS,dis_m3_pyr, pp_x, pp_y) %>% 
   rename(riv_dis = dis_m3_pyr)
-
-#data_per_river<-st_join(data_per_river,basins12_proj)
-
-#data_per_river<-data_per_river[!duplicated(data_per_river$HYRIV_ID),]
-
-#data_per_river<-st_transform(data_per_river, st_crs(rivers)) %>% 
-#  rename(riv_dis = dis_m3_pyr.x,
-#         bas_dis = dis_m3_pyr.y)
-
-#pnts<-st_transform(pnts, st_crs(rivers))
-
-#pb <- txtProgressBar(min = 0, max = nrow(data_per_river), style = 3) 
-#pour_points<-list()
-#for (i in 1:nrow(data_per_river)){
-#  setTxtProgressBar(pb, i)
-#  points_line<- st_cast(data_per_river[i,], "POINT")
-#  pour_points[[i]]<- points_line[nrow(points_line),]
-#  data_per_river[i,"pp_x"]<-extent(pour_points[[i]])[1]
-#  data_per_river[i,"pp_y"]<-extent(pour_points[[i]])[3]
-  
-#}
-
 ```
 
 
@@ -138,24 +116,6 @@ septic_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_septic_per
 direct_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_50_buff.csv")) %>% 
   dplyr::select(-X)
 ```
-
-
-```{r}
-# Old data
-
-#septic_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_septic_per_basin.csv")) %>% 
-#  dplyr::select(-X)
-
-#direct_basins_nutri<-read.csv(here("output_data/Nutrients/N_P_direct_per_basin.csv")) %>% 
-#  dplyr::select(-X)
-
-
-# This is if the Invest model is used
-#un_basins_nutri<-st_read(here("output_data/InVEST/model_output/watershed_results_ndr.shp")) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
-```
-
 
 # Distribute
 
@@ -206,25 +166,6 @@ write_csv(septic_basins_nutri_dist, here("output_data/Nutrients/Fiji_septic_nutr
 write_csv(direct_basins_nutri_dist, here("output_data/Nutrients/Fiji_direct_nutrients_at_pourpoints.csv"))
 ```
 
-```{r}
-# This is if we were using the InVEST output
-
-
-#un_basins_nutri_all<-left_join(data_per_river, un_basins_nutri, by = c("MAIN_BAS")) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry, MAIN_BAS, riv_dis, pp_x, pp_y)
-
-#un_basins_nutri_dist<-un_basins_nutri_all %>% 
-#  group_by(MAIN_BAS) %>% 
-#  summarise(Total_discharge = sum(riv_dis)) %>% 
-#  left_join(., un_basins_nutri_all, by = "MAIN_BAS") %>% 
-#  mutate(prop_dis = riv_dis/Total_discharge,
-#         N_pourpoint = prop_dis * n_exp_tot)
-
-#write_csv(un_basins_nutri_dist, here("output_data/Nutrients/Fiji_unconnected_nutrients_at_pourpoints.csv"))
-
-```
-
 # Nutrient export at each pourpoint (spatial)
 
 ```{r}
@@ -241,7 +182,7 @@ pour_points<-pour_points %>%
 
 st_crs(pour_points)<-t_crs
 
-st_write(pour_points, here("output_data/Rivers/Fiji_septic_pourpoints.shp"), delete_layer = T)
+st_write(pour_points, here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp"), delete_layer = T)
 ```
 
 
@@ -259,5 +200,5 @@ pour_points_direct<-pour_points_direct %>%
 
 st_crs(pour_points_direct)<-t_crs
 
-st_write(pour_points_direct, here("output_data/Rivers/Fiji_direct_pourpoints.shp"), delete_layer = T)
+st_write(pour_points_direct, here("output_data/Nutrients_at_pourpoints/Fiji_direct_pourpoints.shp"), delete_layer = T)
 ```
