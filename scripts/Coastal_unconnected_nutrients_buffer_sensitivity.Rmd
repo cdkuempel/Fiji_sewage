@@ -12,7 +12,6 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(sf)
-#library(startR)
 library(here)
 library(gdalUtils)
 library(tabularaster)
@@ -47,9 +46,12 @@ coast<-fiji_basins12 %>%
   group_by(ID) %>% 
   summarise(area_km2 = sum(area_km2, na.rm = T))
 
+st_write(coast, here("output_data/Coast/Basin_coast.shp"))
 ```
 
 # N and P pollution
+
+These values already assume 10% nutrient removal from septic and 0% from direct
 
 ```{r}
 N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
@@ -70,58 +72,6 @@ Think of whether I've made these buffers correct....
 Another option?
 https://gis.stackexchange.com/questions/327788/addressing-just-the-outermost-cells-in-a-raster
 
-Test this method
-
-```{r}
-#coast_ras<-fasterize(coast, N_cell_septic)
-```
-
-```{r}
-#basins_comb <- st_union(fiji_basins12)
-#basins_comb <- st_cast(basins_comb, "POLYGON")
-#basins_large <- basins_comb[st_area(basins_comb) > #units::set_units(50000,"m^2")]
-#basins_large_sp <- as(basins_large, Class =  "Spatial")
-#outer_coast_ras <- mask(coast_ras, basins_large_sp)
-
-#g_fp <- outer_coast_ras
-#g_fp[!is.na(getValues(g_fp))] <- 1L
-```
-
-```{r}
-outer_cells <- function(x = NULL, diag = TRUE) {
-  focal(x, w = matrix(1, ncol = 3, nrow = 3),
-        fun = function(win) {
-          if(!is.na(win[5])) {
-            return(NA_integer_)
-          }
-
-          if(diag == TRUE) {
-            if(any(!is.na(win[c(-5)]))) { 
-              0L
-            } else {
-              NA_integer_
-            }  
-          } else {
-            if(any(!is.na(win[c(2,4,6,8)]))) {  
-              0L
-            } else {
-              NA_integer_
-            }
-          }
-
-        }
-  )
-}
-```
-
-```{r}
-#rcl <- data.frame('f' = c(1L, NA_integer_), 't' = c(NA_integer_, 1L))
-#g_fp_inv <- subs(g_fp, rcl)
-#g_msk <- outer_cells(g_fp_inv)
-#grey <- g_msk + coast_ras
-```
-
-
 ```{r}
 buff<-seq(from = -10, to = -50, by = -10) %>% as.list()
 
@@ -139,11 +89,11 @@ shpA_remaining <- shpA_buffered[!st_is_empty(shpA_buffered),]
 
 diff<-st_difference(coast, shpA_remaining)
 
-diff_ras<-fasterize(diff, N_cell_septic)
+diff_ras<-fasterize(diff, N_cell_direct)
 
 st_write(diff, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".shp"), delete_layer = T)
 
-writeRaster(diff_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".tif"))
+writeRaster(diff_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".tif"), overwrite = T)
 
 }
 
@@ -151,16 +101,16 @@ pbmclapply(buff, create_buff, mc.cores = 5, mc.style = "ETA")
 ```
 
 ```{r}
-library(tmap)
+#library(tmap)
 
-test<-st_read(here("output_data/Coast/buffers/buffer_coast_-100.shp"))
+#test<-st_read(here("output_data/Coast/buffers/buffer_coast_-100.shp"))
 
-test2<-st_read(here("output_data/Coast/buffers/buffer_coast_-20.shp"))
+#test2<-st_read(here("output_data/Coast/buffers/buffer_coast_-20.shp"))
 
-tmap_mode("view")
+#tmap_mode("view")
 
-tm_shape(test2) +
-  tm_polygons() 
+#tm_shape(test2) +
+#  tm_polygons() 
 ```
 
 ```{r}
@@ -178,9 +128,9 @@ gc()
 # Change buffer area to N/P values
 
 ```{r}
-buffer_list<-list.files(path = here("output_data/Coast/buffers"), pattern = ".tif", full.names = T)
+buffer_list<-list.files(path = here("output_data/Coast/buffers"), pattern = ".tif$", full.names = T)
 
-river_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
+river_list<-list.files(path = here("output_data/Rivers/buffers"), pattern = ".tif$", full.names = T)
 
 buffer_N_P<-function(x){
   
@@ -202,17 +152,13 @@ buffer_N_P<-function(x){
   river_ras2<-river_ras
   river_ras2[is.na(river_ras2) == T]<- 0
   
-  # Add together coast and river raster to find overlaps
+  # Add together coast and river raster to find overlaps to avoid double counting
   coast_only<-buffer_ras + river_ras2
   
   # If value ==2 then we know there is overlap so we remove that cell so we do not double count population. 
   coast_only2<-coast_only
   coast_only2[coast_only2 == 2]<-NA
-  
-  #buffer_proj<-st_transform(buffer_shp, t_crs)
-  #st_crs(buffer_proj)<-t_crs
-  
-  #buffer_basin<-st_intersection(fiji_basins12, buffer_proj)
+
   
   # Subset septic values to only coastal cells (excluding river overlap)
   N<-N_ras * coast_only2
@@ -240,9 +186,9 @@ buffer_N_P<-function(x){
   
   write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_N_P_", name,"_per_basin_",num,"_buff.csv"))
   
-  writeRaster(N, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_N_", name,"_per_basin_",num,"_buff.tif"))
+  writeRaster(N, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_N_", name,"_per_basin_",num,"_buff.tif"), overwrite = T)
   
-  writeRaster(P, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_P_", name,"_per_basin_",num,"_buff.tif"))
+  writeRaster(P, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_P_", name,"_per_basin_",num,"_buff.tif"), overwrite = T)
 
   }
 
