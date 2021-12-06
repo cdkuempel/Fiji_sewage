@@ -155,8 +155,10 @@ prop_pop
 
 ```{r}
 
-stp_ras <- rasterize(stp, pop_ras_proj, getCover=TRUE)
-writeRaster(stp_ras, here("output_data/Sewage_plants/STP_ras.tif"))
+#stp_ras <- rasterize(stp, pop_ras_proj, getCover=TRUE)
+#writeRaster(stp_ras, here("output_data/Sewage_plants/STP_ras.tif"))
+
+stp_ras<-raster(here("output_data/Sewage_plants/STP_ras.tif"))
 
 
 stp_ras2<-stp_ras
@@ -245,9 +247,6 @@ urban<-resample(urban, pop_ras_proj)
 urban_pts<-rasterToPoints(urban)
 urban_df<-urban_pts %>% 
   as.data.frame() 
-
-#unconn_urban<-urban * non_stp #These are the urban areas NOT covered by STPs
-#unconn_urban<-resample(unconn_urban, pop_ras_proj)
 ```
 
 ```{r}
@@ -256,7 +255,9 @@ non_stp<-rasterToPoints(res1) %>%
   rename(non_stp = layer)
 
 pop_urban<-full_join(pop_df, urban_df, by = c("x", "y")) %>% 
-  full_join(., non_stp, by = c("x", "y")) %>% 
+  full_join(., non_stp, by = c("x", "y")) 
+
+pop_urban<- pop_urban %>% 
   mutate(id = 1:nrow(pop_urban))
 ```
 
@@ -282,11 +283,22 @@ septic<-pop_urban %>%
   filter(cumpop<=pop_target) 
 
 septic2<-septic%>% 
-  dplyr::select(x,y,population_fji_albers)
+  dplyr::select(x,y,population_fji_albers, )
 
-septic_ras<-rasterFromXYZ(septic2, pop_ras_proj)
-crs(septic_ras)<-crs(pop_ras_proj)
+septic_sp<-st_as_sf(septic2, coords = c("x", "y"), crs = t_crs)
+
+septic_ras<-rasterize(septic_sp, pop_ras_proj, crs = t_crs)
+
 writeRaster(septic_ras,here("output_data/Population/Septic_population.tif"), overwrite = T)
+```
+
+```{r}
+#tmap_mode("view")
+## tmap mode set to plotting
+#tm_shape(septic_ras) +
+#    tm_raster("population_fji_albers", palette = terrain.colors(10)) +
+#  tm_shape(fiji_basins12) +
+#    tm_borders("white", lwd = .5)
 ```
 
 # Direct
@@ -297,8 +309,12 @@ direct<-pop_urban %>%
          !id %in% septic$id) %>% 
   dplyr::select(x,y, population_fji_albers)
 
-direct_ras<-rasterFromXYZ(direct, pop_ras_proj)
-crs(direct_ras)<-crs(pop_ras_proj)
+direct_sp<-st_as_sf(direct, coords = c("x", "y"), crs = t_crs)
+
+direct_ras<-rasterize(direct_sp, pop_ras_proj, crs = t_crs)
+
+#direct_ras<-rasterFromXYZ(direct, pop_ras_proj, crs = t_crs)
+
 writeRaster(direct_ras,here("output_data/Population/Direct_population.tif"),overwrite = T)
 ```
 

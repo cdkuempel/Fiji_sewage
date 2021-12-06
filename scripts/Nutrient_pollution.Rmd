@@ -82,14 +82,6 @@ N_cell<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
 P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
 ```
 
-If there was no sewage treatment - we estimate the N and P emissions are thus
-
-```{r}
-#N_notreatment<-cellStats(N_cell, sum)
-#P_notreatment<-cellStats(P_cell, sum)
-```
-
-
 # Connected populations
 
 But there is wastewater treatment
