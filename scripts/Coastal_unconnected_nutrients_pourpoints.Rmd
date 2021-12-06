@@ -115,6 +115,19 @@ min(direct_sf$direct_N)
 min(direct_sf$direct_P)
 ```
 
+# Double check values
+
+```{r}
+# These should be equal
+sum(septic_sf$septic_N, na.rm = T)
+cellStats(coast_septic_N, sum, na.rm = T)
+
+# These shoudl be equal
+sum(direct_sf$direct_N, na.rm = T)
+cellStats(coast_direct_N, sum, na.rm = T)
+
+```
+
 
 # Save nutrients at pourpoints
 
