@@ -70,7 +70,7 @@ na_basins<-fiji_basins12 %>%
 length(unique(na_basins$MAIN_BAS))
 length(unique(na_rivers$HYRIV_ID))
 
-st_write(na_rivers, here("output_data/Rivers/Missing_rivers.shp"))
+st_write(na_rivers, here("output_data/Rivers/Missing_rivers.shp"), delete_layer = T)
 ```
 
 ```{r}
