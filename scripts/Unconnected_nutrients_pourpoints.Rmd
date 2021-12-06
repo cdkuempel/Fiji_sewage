@@ -52,27 +52,92 @@ rivers_proj<-st_transform(rivers, t_crs)
 e<-extent(fiji_basins12)
 
 crop_rivers<-st_crop(rivers_proj, e) %>% 
-  dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr)
+  dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr, ENDORHEIC) %>% 
+  filter(NEXT_DOWN == 0,
+         ENDORHEIC != 1)
 
 data_per_river<-st_join(crop_rivers,fiji_basins12)
+```
 
+```{r}
+# Total nutrients doesn't add up - some rivers are not being spatially joined to a basin. Need to figure out what basins below to these rivers, and vice versa
 na_rivers<-data_per_river %>% 
   filter(is.na(MAIN_BAS) == T)
 
-sub_rivers<-data_per_river %>% 
-  filter(MAIN_RIV %in% na_rivers$MAIN_RIV,
-         NEXT_DOWN == MAIN_RIV) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
-  distinct(MAIN_RIV, MAIN_BAS) %>% 
-  filter(!is.na(MAIN_BAS) == T) %>% 
-  rename(MIS_BAS = MAIN_BAS,
-         MIS_RIV = MAIN_RIV)
+na_basins<-fiji_basins12 %>% 
+  filter(!MAIN_BAS %in% data_per_river$MAIN_BAS)
 
-basin_rivers<-data_per_river %>% 
-  full_join(., sub_rivers, c("MAIN_RIV" = "MIS_RIV")) %>% 
-  mutate(MAIN_BAS = ifelse(is.na(MAIN_BAS) == T, as.numeric(MIS_BAS), as.numeric(MAIN_BAS))) %>% 
+length(unique(na_basins$MAIN_BAS))
+length(unique(na_rivers$HYRIV_ID))
+
+st_write(na_rivers, here("output_data/Rivers/Missing_rivers.shp"))
+```
+
+```{r}
+# Done in GIS to look at what basins missing rivers call into
+#50473039 = MAIN_BAS	5120082150
+#50474738 = MAIN_BAS	5120082090
+#50478998 = MAIN_BAS	5120082180
+#50480448 = MAIN_BAS	5120081930
+#50486379 = MAIN_BAS	5120081670
+#50486834 = MAIN_BAS	5120081660
+#50487053 = MAIN_BAS	5120081660
+#50487189 = MAIN_BAS	5120081650
+#50491454 = MAIN_BAS	5120081710
+#50492282 = MAIN_BAS	5120081730
+#50495763 = MAIN_BAS	5120081740
+#50496142 = MAIN_BAS	5120081580
+#50497234 = MAIN_BAS	5120081740
+#50498021 = MAIN_BAS	5120081760
+#50498022 = MAIN_BAS	5120081760
+
+#50506858 = MAIN_BAS	5120081840
+#50508069 = MAIN_BAS	5120081840
+
+na_rivers2<-na_rivers %>% 
+  mutate(MIS_BAS = case_when(HYRIV_ID == 50473039 ~ 5120082150,
+                              HYRIV_ID == 50474738 ~ 5120082090,
+                              HYRIV_ID == 50478998 ~ 5120082180,
+                              HYRIV_ID == 50480448 ~ 5120081930,
+                              HYRIV_ID == 50486379 ~ 5120081670,
+                              HYRIV_ID == 50486834 ~ 5120081660,
+                              HYRIV_ID == 50487053 ~ 5120081660,
+                              HYRIV_ID == 50487189 ~ 5120081650, 
+                              HYRIV_ID == 50491454 ~ 5120081710,
+                              HYRIV_ID == 50492282 ~ 5120081730,
+                              HYRIV_ID == 50495763 ~ 5120081740,
+                              HYRIV_ID == 50496142 ~ 5120081580,
+                              HYRIV_ID == 50497234 ~ 5120081740,
+                              HYRIV_ID == 50498021 ~ 5120081760,
+                              HYRIV_ID == 50498022 ~ 5120081760,
+                              HYRIV_ID == 50506858 ~ 5120081840,
+                              HYRIV_ID == 50508069 ~ 5120081840)) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+```
+
+
+```{r}
+
+basin_rivers<-full_join(data_per_river, na_rivers2) %>% 
+  mutate(MAIN_BAS = ifelse(is.na(MIS_BAS) == FALSE, as.numeric(MIS_BAS), as.numeric(MAIN_BAS))) %>% 
   dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr, HYBAS_ID, MAIN_BAS)
+
+
+#sub_rivers<-data_per_river %>% 
+#  filter(MAIN_RIV %in% na_rivers$MAIN_RIV,
+#         NEXT_DOWN == MAIN_RIV) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry) %>% 
+#  distinct(MAIN_RIV, MAIN_BAS) %>% 
+#  filter(!is.na(MAIN_BAS) == T) %>% 
+#  rename(MIS_BAS = MAIN_BAS,
+#         MIS_RIV = MAIN_RIV)
+
+#basin_rivers<-data_per_river %>% 
+#  full_join(., sub_rivers, c("MAIN_RIV" = "MIS_RIV")) %>% 
+#  mutate(MAIN_BAS = ifelse(is.na(MAIN_BAS) == T, as.numeric(MIS_BAS), #as.numeric(MAIN_BAS))) %>% 
+#  dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr, HYBAS_ID, MAIN_BAS)
 ```
 
 
