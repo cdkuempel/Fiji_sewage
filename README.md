@@ -6,7 +6,7 @@ To recreate the results run the following scripts in this order:
 Code Workflow
 
 1. Population_by_treatment.Rmd
-2. N_P_Removal_by_STP (check which one)
+2. N_P_Removal_by_STP
 3. Nutrient_pollution.Rmd
 4. Unconnected_nutrients_buffer_sensitivity.Rmd
 5. Coast_unconnected_nutrients_buffer_sensitivity.Rmd
