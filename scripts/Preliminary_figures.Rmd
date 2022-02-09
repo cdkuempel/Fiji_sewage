@@ -58,7 +58,8 @@ septic_pop<-tm_shape(pop_treat_basins2) +
     tm_polygons("sep_pop", 
                 style = "cont", 
                 title = "Population") +
-  tm_layout(title = "Septic")
+  tm_layout(title = "Septic") +
+  tm_style(font_face = 3)
 
 septic_pop
 ```
