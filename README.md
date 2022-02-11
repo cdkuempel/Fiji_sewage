@@ -13,6 +13,8 @@ Code Workflow
 6. STP_pourpoints.Rmd
 7. Connected_nutrients_at_pourpoints.Rmd
 8. Unconnected_nutrients_pourpoints.Rmd
-9. Tourism_nutrient_pollution.Rmd
+9. Coastal_unconnected_nutrient_pourpoints.Rmd
+10. Combine_nutrient_pourpoints.Rmd
+11. Tourism_nutrient_pollution.Rmd
 
 
