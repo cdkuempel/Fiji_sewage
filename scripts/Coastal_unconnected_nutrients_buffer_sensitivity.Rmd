@@ -46,7 +46,7 @@ coast<-fiji_basins12 %>%
   group_by(ID) %>% 
   summarise(area_km2 = sum(area_km2, na.rm = T))
 
-st_write(coast, here("output_data/Coast/Basin_coast.shp"))
+st_write(coast, here("output_data/Coast/Basin_coast.shp"), delete_layer = T)
 ```
 
 # N and P pollution
@@ -97,8 +97,13 @@ writeRaster(diff_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffer
 
 }
 
+
+```
+
+```{r}
 pbmclapply(buff, create_buff, mc.cores = 5, mc.style = "ETA")
 ```
+
 
 ```{r}
 #library(tmap)
