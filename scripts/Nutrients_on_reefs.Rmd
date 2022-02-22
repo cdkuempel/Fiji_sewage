@@ -1,0 +1,70 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "22/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load packages
+
+```{r}
+library(sf)
+library(gdalUtils)
+library(here)
+library(raster)
+library(fasterize)
+library()
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Load Allen Coral Atlas data from prep
+
+```{r}
+reef<-st_read(here("projected_data/Allen_Coral_Atlas/coral_algae_proj.shp"))
+
+reef<-st_transform(reef, t_crs)
+```
+
+
+# Load diffusion model results
+
+```{r}
+diff<-raster(here("output_data/diffusion_results/04_wavesed_Feb2022.tiff"))
+
+diff<-projectRaster(diff,  crs = t_crs)
+```
+
+
+# Calculate nutrients per reef pixel/polygon
+
+## Raster
+
+Create reef raster
+
+```{r}
+reef_ras<-fasterize(reef, diff)
+```
+
+Multiply diffusion by reef raster to get nutrients in each reef pixel
+
+```{r}
+reef_diff<-reef_ras*diff
+```
+
+
+## Polygon
+
+This takes forever so make sure we want it before doing it.... easier as a raster
+
+```{r}
+#reef_diff_poly<-reef %>% 
+#  mutate(N = raster::extract(diff, ., fun = mean, na.rm = T))
+```
+
+
+
