@@ -341,7 +341,7 @@ tikina_basin<-st_intersection(fiji_tik, fiji_basins) %>%
 
 tikina_bas_hotels<-st_intersection(hotel_rooms_loc, tikina_basin)
 
-tikina_bas_hotels_df<-tikina_hotels %>% 
+tikina_bas_hotels_df<-tikina_bas_hotels %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry)
 
@@ -536,19 +536,19 @@ test<-prop_hotels_tik %>%
 NB: Some hotels do not have room/person information which creates a discrepency in proportions between hotels/rooms/people.
 
 ```{r}
-prop_occupancy_tik<- tikina_hotels %>% 
-  group_by(TIKINA, Area.1, MAIN_BAS) %>% 
-  summarise(Tik_rooms = sum(Total_rooms, na.rm = T),
+#prop_occupancy_tik<- tikina_hotels %>% 
+#  group_by(TIKINA, Area.1, MAIN_BAS) %>% 
+#  summarise(Tik_rooms = sum(Total_rooms, na.rm = T),
             Tik_visitors = sum(Num_persons, na.rm = T)) %>% 
-  left_join(., rooms_area, by = "Area.1") %>% 
-  left_join(., persons_area, by = "Area.1") %>% 
-  mutate(Prop_rooms = Tik_rooms/Total_rooms,
-            Prop_visitors = Tik_visitors/Total_persons) %>% 
-  left_join(., prop_hotels_tik, by = c("TIKINA", "MAIN_BAS", "Area.1")) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) 
+  #left_join(., rooms_area, by = "Area.1") %>% 
+  #left_join(., persons_area, by = "Area.1") %>% 
+#  mutate(Prop_rooms = Tik_rooms/Total_rooms,
+#            Prop_visitors = Tik_visitors/Total_persons) %>% 
+#  left_join(., prop_hotels_tik, by = c("TIKINA", "MAIN_BAS", #"Area.1")) %>% 
+#  as.data.frame() %>% 
+#  dplyr::select(-geometry) 
 
-write.csv(prop_occupancy_tik, here("tables/Hotels_rooms_visitors_Fiji.csv"))
+#write.csv(prop_occupancy_tik, #here("tables/Hotels_rooms_visitors_Fiji.csv"))
 
 ```
 
