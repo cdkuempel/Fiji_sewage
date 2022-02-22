@@ -56,6 +56,10 @@ Multiply diffusion by reef raster to get nutrients in each reef pixel
 reef_diff<-reef_ras*diff
 ```
 
+```{r}
+writeRaster(reef_diff, here("output_data/Nutrients_at_reefs/Nutrients_at_reefs.tif"))
+```
+
 
 ## Polygon
 
