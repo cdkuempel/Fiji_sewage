@@ -11,11 +11,65 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Load packages
 
+```{r}
+library(doParallel)
+library(foreach)
+library(raster)
+library(rgdal)
+library(here)
+library(sf)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+```
+
+# Our estimates
+
+# Fiji shapefile
+
+```{r}
+fiji<-
+```
+
 
 # Tulhoskey data
 
+```{r}
+url<-c("https://knb.ecoinformatics.org/knb/d1/mn/v2/object/urn%3Auuid%3Aaf8d0bd6-dc0c-4149-a3cd-93b5aed71f7c",
+       "https://knb.ecoinformatics.org/knb/d1/mn/v2/object/urn%3Auuid%3Aefef18ef-416e-4d4d-9190-f17485c02c15")
+```
 
+
+```{r}
+cl<-makeCluster(length(url))
+registerDoParallel(cl)
+
+foreach(i = 1:length(url)) %dopar% {
+mydir<-here::here("raw_data/Validation/Tulhoske") #path to save files
+temp<-tempfile(tmpdir=mydir, fileext=".zip")
+download.file(url[i], temp)
+unzip(temp, exdir=mydir)
+unlink(temp) #delete the zip file
+}
+```
+
+## Effluent countries
+
+Assume units are g/year???
+
+```{r}
+fiji_tuholske<-st_read(here("raw_data/Validation/Tuholske/effluent_N_countries_gdam_all.shp")) %>% 
+  filter(ISO3 == "FJI")
+```
+
+```{r}
+fiji_tuholske$tot_N*1e-6
+fiji_tuholske$treated_N*1e-6
+fiji_tuholske$septic_N*1e-6
+fiji_tuholske$open_N*1e-6
+```
 # Andrello data
 
+Only has N estimates so not sure if it is from wastewater or agriculture. Also only calculate within BCUs so would have to redo with their original data source
 
 # Compare to our estimates
