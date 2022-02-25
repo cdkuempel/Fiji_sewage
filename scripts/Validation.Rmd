@@ -1,0 +1,21 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "23/02/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load packages
+
+
+# Tulhoskey data
+
+
+# Andrello data
+
+
+# Compare to our estimates
