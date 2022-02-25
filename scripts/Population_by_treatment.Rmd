@@ -289,7 +289,9 @@ septic_sp<-st_as_sf(septic2, coords = c("x", "y"), crs = t_crs)
 
 septic_ras<-rasterize(septic_sp, pop_ras_proj, crs = t_crs)
 
-writeRaster(septic_ras,here("output_data/Population/Septic_population.tif"), overwrite = T)
+septic_ras_pop<-septic_ras[[2]]
+
+writeRaster(septic_ras_pop,here("output_data/Population/Septic_population.tif"), overwrite = T)
 ```
 
 ```{r}
@@ -313,9 +315,11 @@ direct_sp<-st_as_sf(direct, coords = c("x", "y"), crs = t_crs)
 
 direct_ras<-rasterize(direct_sp, pop_ras_proj, crs = t_crs)
 
+direct_ras_pop<-direct_ras[[2]]
+
 #direct_ras<-rasterFromXYZ(direct, pop_ras_proj, crs = t_crs)
 
-writeRaster(direct_ras,here("output_data/Population/Direct_population.tif"),overwrite = T)
+writeRaster(direct_ras_pop,here("output_data/Population/Direct_population.tif"),overwrite = T)
 ```
 
 
