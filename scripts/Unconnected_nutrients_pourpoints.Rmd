@@ -248,6 +248,11 @@ pour_points<-pour_points %>%
 st_crs(pour_points)<-t_crs
 
 st_write(pour_points, here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp"), delete_layer = T)
+
+pourpoints_only<-pour_points %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS)
+
+st_write(pourpoints_only, here("output_data/Nutrients_at_pourpoints/Fiji_pourpoints.shp"), delete_layer = T)
 ```
 
 
