@@ -17,7 +17,7 @@ library(gdalUtils)
 library(here)
 library(raster)
 library(fasterize)
-library()
+library(exactextractr)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
@@ -66,8 +66,22 @@ writeRaster(reef_diff, here("output_data/Nutrients_at_reefs/Nutrients_at_reefs.t
 This takes forever so make sure we want it before doing it.... easier as a raster
 
 ```{r}
-#reef_diff_poly<-reef %>% 
-#  mutate(N = raster::extract(diff, ., fun = mean, na.rm = T))
+reef_diff_mean<-reef %>% 
+  mutate(N = exact_extract(diff, ., 'mean'))
+
+st_write(reef_diff_mean, here("output_data/Nutrients_at_reefs/Nutrients_at_reefs_mean.shp"))
+
+test<-reef_diff_mean %>% 
+  filter(!is.nan(N) == T)
+
+reef_diff_sum<-reef %>% 
+  mutate(N = exact_extract(diff, ., 'sum'))
+
+st_write(reef_diff_sum, here("output_data/Nutrients_at_reefs/Nutrients_at_reefs_sum.shp"))
+
+test2<-reef_diff_sum %>% 
+  filter(!is.nan(N) == T,
+         N>0)
 ```
 
 
