@@ -539,7 +539,7 @@ NB: Some hotels do not have room/person information which creates a discrepency 
 #prop_occupancy_tik<- tikina_hotels %>% 
 #  group_by(TIKINA, Area.1, MAIN_BAS) %>% 
 #  summarise(Tik_rooms = sum(Total_rooms, na.rm = T),
-            Tik_visitors = sum(Num_persons, na.rm = T)) %>% 
+  #          Tik_visitors = sum(Num_persons, na.rm = T)) %>% 
   #left_join(., rooms_area, by = "Area.1") %>% 
   #left_join(., persons_area, by = "Area.1") %>% 
 #  mutate(Prop_rooms = Tik_rooms/Total_rooms,
@@ -598,7 +598,6 @@ Primary treatment = 10% removal for both N and P
 Secondary treatment = 40% for N and 45% for P 
 Septic system = 10% (same as primary treatment)
 
-***********Suva doesn't seem to come up here - need to fix this*************
 
 ```{r}
 
@@ -630,9 +629,11 @@ test<-hotel_treatment %>%
   filter(is.na(treatment_level) == T)
 
 hotel_treatment_df<-hotel_treatment %>% 
-  as.data.frame() 
+  as.data.frame() %>% 
+  dplyr::select(-geometry.x, -geometry.y)
 
-write.csv(hotel_treatment, here("output_data/Tourism/Hotels_treatment_type.csv"))
+write.csv(hotel_treatment_df, here("output_data/Tourism/Hotels_treatment_type.csv"))
+
 
 ```
 
@@ -702,9 +703,8 @@ tourist_treated_final<-tourist_treated %>%
 test<-tourist_treated_final %>% 
   filter(Area.1 == "Coral Coast") 
 
-tourist_treated_df<-tourist_treated %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry)
+tourist_treated_df<-tourist_treated_final %>% 
+  as.data.frame() 
 
 write.csv(tourist_treated_df, here("output_data/Tourism/Treated_tourist_nutrients.csv"))
 ```
