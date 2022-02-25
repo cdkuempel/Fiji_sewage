@@ -68,20 +68,28 @@ st_crs(direct)<-t_crs
 ```{r}
 coastal_septic<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp")) %>% 
   dplyr::select(septic_N, septic_P) %>% 
-  rename(N = septic_N,
-         P = septic_P) %>% 
+  mutate(N_leach = septic_N*0.1,
+         P_leach = septic_P*0.1) %>% 
   mutate(type = "Coastal_septic") %>% 
-  st_transform(., t_crs)
+  st_transform(., t_crs) %>% 
+  dplyr::select(N_leach, P_leach,type) %>% 
+    rename(N = N_leach,
+         P = P_leach) 
 
 st_crs(coastal_septic)<-t_crs
 ```
+
 ```{r}
 coastal_direct<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp")) %>% 
   dplyr::select(direct_N, direct_P) %>% 
-  rename(N = direct_N,
-         P = direct_P) %>% 
+  mutate(N_leach = direct_N*0.1,
+         P_leach = direct_P*0.1) %>% 
   mutate(type = "Coastal_direct") %>% 
-  st_transform(., t_crs)
+  st_transform(., t_crs) %>% 
+  dplyr::select(N_leach, P_leach,type) %>% 
+  rename(N = N_leach,
+         P = P_leach)
+  
 
 st_crs(coastal_direct)<-t_crs
 ```
