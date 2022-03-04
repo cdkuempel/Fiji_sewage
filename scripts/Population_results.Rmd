@@ -19,40 +19,16 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 
 # Population stats
 
-## Try another population dataset
-
 ```{r}
-test<-raster(here("raw_data/Population/fji_population_grid_2020/FJI_Pop_Grid_2020.tif"))
-
-test_proj<-projectRaster(test, crs = t_crs)
-
-test_pop_df<-cellStats(test_proj, "sum")
-```
-
-
-```{r}
-pop_ras_proj<-raster(here("projected_data/Population/population_fji_albers.tif"))
-
+pop_ras_proj<-raster(here("projected_data/Population/FJI_Pop_Grid_proj.tif"))
 
 fiji_pop_df<-cellStats(pop_ras_proj, "sum")
-
-
-stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
-
-stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
-  st_transform(., crs = t_crs) %>% 
-  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
-                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
-  mutate(area = st_area(.)) %>% 
-  group_by(STP) %>% 
-  summarise(area = sum(area, na.rm = T)) %>% 
-  filter(!is.na(STP) == T,
-         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP"))
-  
-stp<-stp %>% 
-  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
-         ID = 1:nrow(stp))
 ```
+
+```{r}
+connected_pop<-read.csv(here("output_data/Sewage_plants/Connected_population_by_STP.csv"))
+```
+
 # Fiji population
 
 ```{r}
@@ -61,19 +37,24 @@ fiji_pop_df
 
 # Connected population
 ```{r}
-conn_pop<-sum(stp$stp_pop)
+conn_pop<-sum(connected_pop$stp_pop)
 
 prop_pop<-conn_pop/fiji_pop_df
 
 conn_pop
 prop_pop
 ```
+In 2007, the STP serviced ~194,700 people (23% of population) - Fiji National Wastewater Plan
+```{r}
+(conn_pop-194700)/194700
+(prop_pop-0.23)/0.23
+```
 
 
 ```{r}
 pop_check<-read_csv(here("output_data/Sewage_plants/STP_population_check.csv")) %>% 
   filter(!is.na(estimated) == T) %>% 
-  mutate(perc_diff = (estimated - reported)/estimated)
+  mutate(prop_diff = (estimated - reported)/reported)
 ```
 
 ```{r}
