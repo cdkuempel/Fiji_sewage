@@ -1,0 +1,105 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "04/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(raster)
+library(here)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Population stats
+
+## Try another population dataset
+
+```{r}
+test<-raster(here("raw_data/Population/fji_population_grid_2020/FJI_Pop_Grid_2020.tif"))
+
+test_proj<-projectRaster(test, crs = t_crs)
+
+test_pop_df<-cellStats(test_proj, "sum")
+```
+
+
+```{r}
+pop_ras_proj<-raster(here("projected_data/Population/population_fji_albers.tif"))
+
+
+fiji_pop_df<-cellStats(pop_ras_proj, "sum")
+
+
+stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
+
+stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
+                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(STP) %>% 
+  summarise(area = sum(area, na.rm = T)) %>% 
+  filter(!is.na(STP) == T,
+         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP"))
+  
+stp<-stp %>% 
+  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
+         ID = 1:nrow(stp))
+```
+# Fiji population
+
+```{r}
+fiji_pop_df
+```
+
+# Connected population
+```{r}
+conn_pop<-sum(stp$stp_pop)
+
+prop_pop<-conn_pop/fiji_pop_df
+
+conn_pop
+prop_pop
+```
+
+
+```{r}
+pop_check<-read_csv(here("output_data/Sewage_plants/STP_population_check.csv")) %>% 
+  filter(!is.na(estimated) == T) %>% 
+  mutate(perc_diff = (estimated - reported)/estimated)
+```
+
+```{r}
+cor.test(pop_check$reported, pop_check$estimated, method = "pearson")
+```
+
+```{r}
+septic<-raster(here("output_data/Population/Septic_population.tif"))
+```
+
+```{r}
+septic_pop<-cellStats(septic, stat = "sum", na.rm = T)
+
+septic_pop/fiji_pop_df
+```
+
+```{r}
+direct<-raster(here("output_data/Population/Direct_population.tif"))
+```
+
+```{r}
+direct_pop<-cellStats(direct, stat = "sum", na.rm = T)
+
+direct_pop/fiji_pop_df
+```
+
+```{r}
+(conn_pop + septic_pop + direct_pop)/fiji_pop_df
+```
