@@ -51,7 +51,10 @@ e<-extent(fiji_basins12)
 crop_rivers<-st_crop(rivers_proj, e) %>% 
   dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr)
 ```
+
 # N and P pollution
+
+Without any nutrient removal
 
 ```{r}
 N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
@@ -160,6 +163,10 @@ pbmclapply(buffer_list2, buffer_N_P, mc.cores = 5, mc.style = "ETA")
 
 # Calculate N and P for different buffer distances and leaching rates
 
+Treatment rate of 0.1 means that 10% of nutrients is removed through treatment
+
+Leach rate of 0.1 means that 10% of nutrients leaches (90% lost), a value of 90% would be 10% of nutrients is lost through leaching
+
 ```{r}
 N_P_buffers<-list.files(here("output_data/Nutrients/buffers"), pattern = "septic", full.names = T)
 
@@ -191,9 +198,8 @@ for(i in 1:length(N_P_buffers3)){
     n_leach<-n_treat*leach[k]
     p_leach<-p_treat*leach[k]
     
-    df<-data.frame(buffer = buff, leach_rate = leach[k], N = n_leach, P = p_leach)
     
-    df<-data.frame(buffer = buff, treatment_rate = treatment[z], N = n_treat, P = p_treat, leach_rate = leach[k], N_leach = n_leach, P_leach = p_leach)
+    df<-data.frame(buffer = buff, treatment_rate = treatment[z], N = n, P = p, N_treat = n_treat, P_treat = p_treat, leach_rate = leach[k], N_leach = n_leach, P_leach = p_leach)
     
     df2<-rbind(df2, df)
     
@@ -239,7 +245,7 @@ for(i in 1:length(N_P_buffers_direct3)){
     n_leach<-n*leach[k]
     p_leach<-p*leach[k]
     
-    df<-data.frame(buffer = buff, treatment_rate = treatment[z], N = n_treat, P = p_treat, leach_rate = leach[k], N_leach = n_leach, P_leach = p_leach)
+    df<-data.frame(buffer = buff, treatment_rate = treatment[z], N = n, P = p, N_treat = n_treat, P_treat = p_treat, leach_rate = leach[k], N_leach = n_leach, P_leach = p_leach)
     
     df4<-rbind(df4, df)
   }
@@ -264,6 +270,6 @@ write.csv(df5, here("output_data/Sensitivity/Direct_treatment_leach_buffer_analy
 test<-read.csv(here("output_data/Sensitivity/Septic_treatment_leach_buffer_analysis.csv"))
 
 test2<- test %>% 
-  filter(buffer == 50 & treatment_rate == 0.2 & leach_rate == 0.1)
+  filter(buffer == 50 & treatment_rate == 0.2 & leach_rate == 0.9)
 ```
 
