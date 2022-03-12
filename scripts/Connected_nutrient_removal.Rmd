@@ -1,0 +1,131 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "12/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load libraries
+
+```{r}
+library(tidyverse)
+library(here)
+library(raster)
+library(tabularaster)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Data
+
+STP locations
+
+```{r}
+stp_ID_ras<-raster(here("output_data/Sewage_plants/STP_ID_raster.tif"))
+```
+
+Connected population
+
+```{r}
+N_cell_conn<-raster(here("output_data/Nutrients/Connected_N.tif"))
+P_cell_conn<-raster(here("output_data/Nutrients/Connected_P.tif"))
+```
+
+```{r}
+stp_df<-as_tibble(stp_ID_ras, cell = TRUE, value = TRUE) %>% 
+  rename(stp_ID = cellvalue) %>% 
+  filter(!is.na(stp_ID) == T)
+N_df<-as_tibble(N_cell_conn, cell = TRUE, value = TRUE) %>% 
+  rename(N = cellvalue)%>% 
+  filter(!is.na(N) == T)
+P_df<-as_tibble(P_cell_conn, cell = TRUE, value = TRUE) %>% 
+  rename(P = cellvalue)%>% 
+  filter(!is.na(P) == T)
+```
+
+```{r}
+nutrient_stp<-full_join(stp_df, N_df, by = "cellindex") %>% 
+  full_join(., P_df, by = "cellindex") %>% 
+  group_by(stp_ID) %>% 
+  summarise(N_stp = sum(N, na.rm = T),
+            P_stp = sum(P, na.rm = T)) %>% 
+  rename(ID = stp_ID)
+```
+
+# Nutrient removal
+
+```{r}
+nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+  mutate(ID = ifelse(STP == "ACS", NA,
+                     ifelse(STP == "Deuba", 1,
+                            ifelse(STP == "Kinoya", 2,
+                                   ifelse(STP == "Naboro", NA,
+                                          ifelse(STP == "Nadali", 3,
+                                                 ifelse(STP ==  "Namara", 4,
+                                                        ifelse(STP == "Lautoka", 5,
+                                                               ifelse(STP ==  "Navakai", 6,
+                                                                      ifelse(STP == "Olosara", 7,
+                                                                             ifelse(STP == "Ba", 8,
+                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))),
+         nutri_left = (1-rm_eff)) %>% 
+  filter(!STP == "ACS",
+         !STP == "Naboro")
+
+N_removal<-nutri_removal %>% 
+  filter(type == "N",
+        !is.na(ID) == T) %>% 
+  rename(N_left = nutri_left) %>% 
+  dplyr::select(STP, ID, N_left)
+
+P_removal<-nutri_removal %>% 
+  filter(type == "P",
+         !is.na(ID) == T) %>% 
+  rename(P_left = nutri_left) %>% 
+  dplyr::select(STP, ID, P_left)
+```
+
+```{r}
+stp_nutri_removal<-full_join(nutrient_stp, N_removal, by = "ID") %>% 
+  full_join(., P_removal, by = c("ID", "STP"))
+
+stp_nutri_removal<-stp_nutri_removal %>% 
+  mutate(N_final = N_stp * N_left,
+         P_final = P_stp * P_left)
+```
+
+Current nutrients based on removal efficiency
+```{r}
+sum(stp_nutri_removal$N_final) * 0.001 #Tonnes/year
+sum(stp_nutri_removal$P_final) * 0.001 #Tonnes/year
+```
+
+```{r}
+write.csv(stp_nutri_removal, here("output_data/Sewage_plants/Nutrients_at_STP.csv"), append = F)
+```
+
+```{r}
+stp_shp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
+  st_transform(., t_crs) %>% 
+  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
+                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
+  mutate(area = st_area(.)) %>% 
+  group_by(STP) %>% 
+  summarise(area = sum(area, na.rm = T)) %>% 
+  filter(!is.na(STP) == T,
+         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP"))
+
+stp_shp<-stp_shp %>% 
+  mutate(ID = 1:nrow(stp_shp))
+```
+
+```{r}
+stp_nutri_removal_shp<-full_join(stp_shp, stp_nutri_removal, by = "ID")
+```
+
+```{r}
+st_write(stp_nutri_removal_shp, here("output_data/Sewage_plants/Nutrients_at_STP.shp"), delete_layer = TRUE)
+```
