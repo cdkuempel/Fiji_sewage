@@ -67,188 +67,53 @@ P_emissions_human<-0.365*P_excretion_human #kg/person/year
 
 # N and P emissions per grid cell
 
+## Connected
+
 ```{r}
-N_cell<-pop_ras_proj * N_emissions_human #kg/year/cell
-P_cell<-pop_ras_proj * P_emissions_human #kg/year/cell
+conn_pop<-raster(here("output_data/Population/Connected_population.tif"))
 ```
 
 ```{r}
-writeRaster(N_cell, here("output_data/Nutrients/Fiji_N_per_cell.tif"),overwrite = T)
-writeRaster(P_cell, here("output_data/Nutrients/Fiji_P_per_cell.tif"), overwrite = T)
+N_cell_conn<-conn_pop * N_emissions_human #kg/year/cell
+P_cell_conn<-conn_pop * P_emissions_human #kg/year/cell
 ```
 
 ```{r}
-N_cell<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
-P_cell<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
+writeRaster(N_cell_conn,here("output_data/Nutrients/Connected_N.tif"),overwrite = T)
+writeRaster(P_cell_conn,here("output_data/Nutrients/Connected_P.tif"),overwrite = T)
 ```
 
-# Connected populations
-
-But there is wastewater treatment
-
-Sewage treatment plant catchment shapefile
+## Septic
 
 ```{r}
-stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>% 
-  st_transform(., t_crs) %>% 
-  mutate(STP = ifelse(TREATMENT_ == "NATABUA WWTP", "Natabua WWTP",
-                      ifelse(TREATMENT_ == "Navakai PS", "Navakai WWTP", as.character(TREATMENT_)))) %>% 
-  mutate(area = st_area(.)) %>% 
-  group_by(STP) %>% 
-  summarise(area = sum(area, na.rm = T)) %>% 
-  filter(!is.na(STP) == T,
-         !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP")) 
-
-  
-stp<-stp %>% 
-  mutate(stp_pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
-         ID = 1:nrow(stp))
-```
-
-
-Sewage treatment plant catchment raster
-
-```{r}
-stp_ras<-raster(here("output_data/Sewage_plants/stp_raster_residential.tif"))
-```
-
-Sewage treatment plant nutrient removal rates
-
-```{r}
-nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
-  mutate(ID = ifelse(STP == "ACS", NA,
-                     ifelse(STP == "Deuba", 1,
-                            ifelse(STP == "Kinoya", 2,
-                                   ifelse(STP == "Naboro", NA,
-                                          ifelse(STP == "Nadali", 3,
-                                                 ifelse(STP ==  "Namara", 4,
-                                                        ifelse(STP == "Lautoka", 5,
-                                                               ifelse(STP ==  "Navakai", 6,
-                                                                      ifelse(STP == "Olosara", 7,
-                                                                             ifelse(STP == "Ba", 8,
-                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))),
-         nutri_left = (1-rm_eff)) %>% 
-  filter(!STP == "ACS",
-         !STP == "Naboro")
-
-N_removal<-nutri_removal %>% 
-  filter(type == "N",
-        !is.na(ID) == T) %>% 
-  rename(N_left = nutri_left)
-
-P_removal<-nutri_removal %>% 
-  filter(type == "P",
-         !is.na(ID) == T) %>% 
-  rename(P_left = nutri_left)
-```
-
-Make sewage treatment into a raster
-
-This takes awhile - avoid if possible
-
-```{r}
-N_stp_removal<-subs(stp_ras, N_removal, by= "ID", which="N_left")
-P_stp_removal<-subs(stp_ras, P_removal, by= "ID", which="P_left")
+septic_pop<-raster(here("output_data/Population/Septic_population.tif"))
 ```
 
 ```{r}
-writeRaster(N_stp_removal, here("output_data/Sewage_plants/N_stp_removal.tif"), overwrite = T)
-writeRaster(P_stp_removal, here("output_data/Sewage_plants/P_stp_removal.tif"), overwrite = T)
+N_cell_septic<-septic_pop * N_emissions_human #kg/year/cell
+P_cell_septic<-septic_pop * P_emissions_human #kg/year/cell
 ```
 
 ```{r}
-N_stp_removal<-raster(here("output_data/Sewage_plants/N_stp_removal.tif"), overwrite = T)
-P_stp_removal<-raster(here("output_data/Sewage_plants/P_stp_removal.tif"), overwrite = T)
+writeRaster(N_cell_septic,here("output_data/Nutrients/Septic_N.tif"),overwrite = T)
+writeRaster(P_cell_septic,here("output_data/Nutrients/Septic_P.tif"),overwrite = T)
+```
+
+## Direct
+
+```{r}
+direct_pop<-raster(here("output_data/Population/Direct_population.tif"))
 ```
 
 
-Account for treatment
-
 ```{r}
-test<-N_stp_removal
-test[is.na(test) == T]<-1
-test[test<1]<-0
-
-test2<-P_stp_removal
-test2[is.na(test2) == T]<-1
-test2[test2<1]<-0
-
-N_connected<-N_cell * N_stp_removal
-
-P_connected<-P_cell * P_stp_removal
-
-N_unconnected<- N_cell * test
-  
-P_unconnected<- P_cell * test2
+N_cell_direct<-direct_pop * N_emissions_human #kg/year/cell
+P_cell_direct<-direct_pop * P_emissions_human #kg/year/cell
 ```
 
 ```{r}
-writeRaster(N_connected, here("output_data/Nutrients/N_connected.tif"), overwrite = T)
-writeRaster(P_connected, here("output_data/Nutrients/P_connected.tif"), overwrite = T)
-writeRaster(N_unconnected, here("output_data/Nutrients/N_unconnected.tif"), overwrite = T)
-writeRaster(P_unconnected, here("output_data/Nutrients/P_unconnected.tif"), overwrite = T)
+writeRaster(N_cell_direct,here("output_data/Nutrients/Direct_N.tif"),overwrite = T)
+writeRaster(P_cell_direct,here("output_data/Nutrients/Direct_P.tif"),overwrite = T)
 ```
 
-
-# Nutrients at each STP
-
-```{r}
-stp_pop_nutri<- stp %>% 
-  mutate(N = extract(N_cell, stp, fun = sum, na.rm = T),
-         P = extract(P_cell, stp, fun = sum, na.rm = T)) %>% 
-  full_join(., N_removal, by = "ID") %>% 
-  full_join(., P_removal, by = "ID") %>% 
-  mutate(N_final = N * N_left,
-         P_final = P * P_left) %>% 
-  dplyr::select(STP, ID, stp_pop, N, P, N_left, P_left, N_final, P_final)
-#stp2<- stp %>% 
-#  mutate(N = extract(N_connected, stp, fun = sum, na.rm = T),
-#         P = extract(P_connected, stp, fun = sum, na.rm = T))
-```
-
-Current nutrients based on removal efficiency
-```{r}
-sum(stp_pop_nutri$N_final) * 0.001 #Tonnes/year
-sum(stp_pop_nutri$P_final) * 0.001 #Tonnes/year
-```
-
-```{r}
-st_write(stp_pop_nutri, here("output_data/Sewage_plants/Nutrients_at_STP.shp"), append = F)
-```
-
-# Unconnected
-
-# Septic/Direct population
-```{r}
-septic<-raster(here("output_data/Population/Septic_population.tif"))
-
-septic[septic>0]<-1
-```
-
-```{r}
-direct<-raster(here("output_data/Population/Direct_population.tif"))
-
-direct[direct>0]<-1
-```
-
-```{r}
-septic_N<-N_unconnected * septic
-septic_P<-P_unconnected * septic
-
-septic_N_rm<-septic_N * 0.9 # Assume 10% removal efficiency from Wang et al. primary treatment
-septic_P_rm<-septic_P * 0.9 # Assume 10% removal efficiency from Wang et al. primary treatment
-
-direct_N<-N_unconnected * direct
-direct_P<-P_unconnected * direct
-```
-
-```{r}
-writeRaster(septic_N_rm,here("output_data/Nutrients/Septic_N.tif"),overwrite = T)
-writeRaster(septic_P_rm,here("output_data/Nutrients/Septic_P.tif"),overwrite = T)
-writeRaster(direct_N,here("output_data/Nutrients/Direct_N.tif"),overwrite = T)
-writeRaster(direct_P,here("output_data/Nutrients/Direct_P.tif"),overwrite = T)
-```
-
-
-To get the final N/P values for septic and direct - need to run the Unconnected_nutrients_buffer_sensitivity script.
 
