@@ -168,7 +168,9 @@ N_P_buffers2<-N_P_buffers[grep(N_P_buffers, pattern = "Coast")]
 N_P_buffers3<-N_P_buffers[!N_P_buffers %in% N_P_buffers2]
 
 leach<-seq(0.1,1,by = 0.1)
+treatment<-seq(0.1,1, by = 0.1)
 df2<-c()
+df3<-c()
 
 for(i in 1:length(N_P_buffers3)){
   name<-N_P_buffers3[i]
@@ -178,21 +180,31 @@ for(i in 1:length(N_P_buffers3)){
   n<-sum(c$N, na.rm = T)
   p<-sum(c$P, na.rm = T)
   
-  for(k in 1:length(leach)){
+  for(z in 1:length(treatment)){
     rm(df)
-    print(leach[k])
-    n_leach<-n*leach[k]
-    p_leach<-p*leach[k]
+    print(treatment[z])
+    n_treat<-n*(1-treatment[z])
+    p_treat<-p*(1-treatment[z])
+    
+    for(k in 1:length(leach)){
+    
+    n_leach<-n_treat*leach[k]
+    p_leach<-p_treat*leach[k]
     
     df<-data.frame(buffer = buff, leach_rate = leach[k], N = n_leach, P = p_leach)
     
+    df<-data.frame(buffer = buff, treatment_rate = treatment[z], N = n_treat, P = p_treat, leach_rate = leach[k], N_leach = n_leach, P_leach = p_leach)
+    
     df2<-rbind(df2, df)
+    
+    }
+    
+    df3<-rbind(df3,df2)
+    
   }
-  
-  
 }
 
-df2<-df2 %>% 
+df3<-df3 %>% 
   mutate(type = "septic")
 
 ```
@@ -206,6 +218,7 @@ N_P_buffers_direct2<-N_P_buffers_direct[grep(N_P_buffers_direct, pattern = "Coas
 N_P_buffers_direct3<-N_P_buffers_direct[!N_P_buffers_direct %in% N_P_buffers_direct2]
 
 df4<-c()
+df5<-c()
 
 for(i in 1:length(N_P_buffers_direct3)){
   name<-N_P_buffers_direct3[i]
@@ -214,27 +227,43 @@ for(i in 1:length(N_P_buffers_direct3)){
   n<-sum(c$N, na.rm = T)
   p<-sum(c$P, na.rm = T)
   
+  for(z in 1:length(treatment)){
+    rm(df)
+    print(treatment[z])
+    n_treat<-n*(1-treatment[z])
+    p_treat<-p*(1-treatment[z])
+  
   for(k in 1:length(leach)){
     rm(df)
     print(leach[k])
     n_leach<-n*leach[k]
     p_leach<-p*leach[k]
     
-    df<-data.frame(buffer = buff, leach_rate = leach[k], N = n_leach, P = p_leach)
+    df<-data.frame(buffer = buff, treatment_rate = treatment[z], N = n_treat, P = p_treat, leach_rate = leach[k], N_leach = n_leach, P_leach = p_leach)
     
     df4<-rbind(df4, df)
   }
   
+    df5<-rbind(df5,df4)
+  }
 }
 
-df4<- df4 %>% 
+df5<- df5 %>% 
   mutate(type = "direct")
 ```
 
 
 ```{r}
-done<-rbind(df2, df4)
 
-write.csv(done, here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv"))
+write.csv(df3, here("output_data/Sensitivity/Septic_treatment_leach_buffer_analysis.csv"))
+
+write.csv(df5, here("output_data/Sensitivity/Direct_treatment_leach_buffer_analysis.csv"))
+```
+
+```{r}
+test<-read.csv(here("output_data/Sensitivity/Septic_treatment_leach_buffer_analysis.csv"))
+
+test2<- test %>% 
+  filter(buffer == 50 & treatment_rate == 0.2 & leach_rate == 0.1)
 ```
 
