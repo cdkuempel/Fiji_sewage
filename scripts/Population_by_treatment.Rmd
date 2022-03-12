@@ -86,6 +86,13 @@ stp_df<-stp2 %>%
 write.csv(stp_df, here("output_data/Sewage_plants/Connected_population_by_STP.csv"))
 ```
 
+```{r}
+stp3<-st_cast(stp2, "MULTIPOLYGON")
+stp_ID_ras<-fasterize(stp3, pop_ras_proj, field = "ID")
+
+writeRaster(stp_ID_ras, here("output_data/Sewage_plants/STP_ID_raster.tif"), overwrite = T)
+```
+
 # Summarise population within each STP watershed
 
 ```{r}
@@ -95,6 +102,14 @@ pop_df<-rasterToPoints(pop_ras_proj) %>%
   as.data.frame()
 
  # Population is 887648
+```
+
+```{r}
+stp_ras<-mask(pop_ras_proj, stp)
+
+cellStats(stp_ras, "sum")
+
+writeRaster(stp_ras, here("output_data/Population/Connected_population.tif"), overwrite = T)
 ```
 
 # Prop of population connected
