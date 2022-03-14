@@ -28,6 +28,8 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 
 We use 50 meters as this is the distance used for septic buffer
 
+These layers are the 50 m buffer changed to N/P values, not including any treatment or leaching
+
 ```{r}
 coast_septic_N<-raster(here("output_data/Nutrients/buffers/Coast_N_septic_per_basin_50_buff.tif"))
 
@@ -114,7 +116,6 @@ min(septic_sf$septic_P)
 min(direct_sf$direct_N)
 min(direct_sf$direct_P)
 ```
-
 # Double check values
 
 ```{r}
@@ -127,11 +128,28 @@ sum(direct_sf$direct_N, na.rm = T)
 cellStats(coast_direct_N, sum, na.rm = T)
 
 ```
+# Apply treatment and leaching values
+
+```{r}
+septic_sf<-septic_sf %>% 
+  mutate(septic_N_treat = septic_N*0.8, #20% removal from septic tanks and soil absorption systems
+         septic_P_treat = septic_P*0.8,
+         septic_N_treat_leach = septic_N_treat * 0.9, #10% lost in sandy soils
+         septic_P_treat_leach = septic_P_treat * 0.9)
+```
+
+```{r}
+direct_sf<-direct_sf %>% 
+  mutate(direct_N_treat = direct_N, #0% removal from direct disposal
+         direct_P_treat = direct_P,
+         direct_N_treat_leach = direct_N_treat * 0.9, #10% lost in sandy soils
+         direct_P_treat_leach = direct_P_treat * 0.9)
+```
 
 
 # Save nutrients at pourpoints
 
-This assumes no additional nutrient removal during leaching.
+Septic has much fewer pourpoints than direct.
 
 ```{r}
 st_write(septic_sf, here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp"), delete_layer = TRUE)
