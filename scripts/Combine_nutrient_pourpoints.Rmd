@@ -41,9 +41,9 @@ connected<-connected %>%
 
 ```{r}
 septic<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp")) %>% 
-  dplyr::select(N_leach, P_leach) %>% 
-  rename(N = N_leach,
-         P = P_leach) %>% 
+  dplyr::select(N_trt_l, P_trt_l) %>% 
+  rename(N = N_trt_l,
+         P = P_trt_l) %>% 
   mutate(type = "Septic") %>% 
   st_transform(., t_crs)
 st_crs(septic)<-t_crs
@@ -54,9 +54,9 @@ st_crs(septic)<-t_crs
 
 ```{r}
 direct<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_direct_pourpoints.shp")) %>% 
-  dplyr::select(N_leach, P_leach) %>% 
-  rename(N = N_leach,
-         P = P_leach) %>% 
+  dplyr::select(N_trt_l, P_trt_l) %>% 
+  rename(N = N_trt_l,
+         P = P_trt_l) %>% 
   mutate(type = "Direct") %>% 
   st_transform(., t_crs)
 
@@ -67,29 +67,22 @@ st_crs(direct)<-t_crs
 
 ```{r}
 coastal_septic<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp")) %>% 
-  dplyr::select(septic_N, septic_P) %>% 
-  mutate(N_leach = septic_N*0.1,
-         P_leach = septic_P*0.1) %>% 
+  dplyr::select(spt_N__, spt_P__) %>% 
+  rename(N = spt_N__,
+         P = spt_P__) %>% 
   mutate(type = "Coastal_septic") %>% 
-  st_transform(., t_crs) %>% 
-  dplyr::select(N_leach, P_leach,type) %>% 
-    rename(N = N_leach,
-         P = P_leach) 
+  st_transform(., t_crs) 
 
 st_crs(coastal_septic)<-t_crs
 ```
 
 ```{r}
 coastal_direct<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp")) %>% 
-  dplyr::select(direct_N, direct_P) %>% 
-  mutate(N_leach = direct_N*0.1,
-         P_leach = direct_P*0.1) %>% 
+  dplyr::select(drc_N__, drc_P__) %>% 
+  rename(N = drc_N__,
+         P = drc_P__) %>% 
   mutate(type = "Coastal_direct") %>% 
-  st_transform(., t_crs) %>% 
-  dplyr::select(N_leach, P_leach,type) %>% 
-  rename(N = N_leach,
-         P = P_leach)
-  
+  st_transform(., t_crs) 
 
 st_crs(coastal_direct)<-t_crs
 ```
