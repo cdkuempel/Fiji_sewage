@@ -1,7 +1,7 @@
 ---
 title: "Untitled"
 author: "Caitie"
-date: "04/03/2022"
+date: "16/03/2022"
 output: html_document
 ---
 
@@ -14,279 +14,223 @@ library(tidyverse)
 library(raster)
 library(here)
 library(sf)
-
-t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-```
-
-
-# Nutrients by treatment types
-
-Nutrients without treatment
-
-```{r}
-n_fiji<-raster(here("output_data/Nutrients/Fiji_N_per_cell.tif"))
-p_fiji<-raster(here("output_data/Nutrients/Fiji_P_per_cell.tif"))
 ```
 
 ```{r}
-fiji_n<-cellStats(n_fiji, sum, na.rm = T) * 0.001
-fiji_p<-cellStats(p_fiji, sum , na.rm = T) * 0.001
+nutri_results<-read.csv(here("output_data/Results/Nutrient_results.csv"))
 
-fiji_n
-fiji_p
 ```
 
+# Residential
+
+```{r}
+residential_N<-nutri_results %>% 
+  filter(Type %in% c("Connected", "Septic", "Direct", "Coastal_septic", "Coastal_direct"),
+         Nutrient == "N") 
+```
+
+```{r}
+residential_P<-nutri_results %>% 
+  filter(Type %in% c("Connected", "Septic", "Direct", "Coastal_septic", "Coastal_direct"),
+         Nutrient == "P") 
+```
+
+## Total excreted
+
+```{r}
+n_excrete<-sum(residential_N$Excreted, na.rm = T)
+p_excrete<-sum(residential_P$Excreted, na.rm = T)
+
+n_excrete
+p_excrete
+
+```
+
+## Total effluent
+
+```{r}
+n_effluent<-sum(residential_N$Effluent, na.rm = T)
+p_effluent<-sum(residential_P$Effluent, na.rm = T)
+
+n_effluent
+p_effluent
+```
 
 ## Connected
 
 ```{r}
-nutri_connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp"))
-```
+conn_N_eff <- residential_N %>% 
+  filter(Type == "Connected")%>% 
+  dplyr::select("Effluent") %>% 
+  unique()
 
-The below values are in kg/year
-```{r}
-
-# Total N and P human emissions
-connected_n<-sum(nutri_connected$N) * 0.001
-connected_p<-sum(nutri_connected$P) * 0.001
-
-connected_n
-connected_p
-
+conn_P_eff <- residential_P %>% 
+  filter(Type == "Connected") %>% 
+  dplyr::select("Effluent") %>% 
+  unique()
 
 ```
 
+Percent of effluent that is from WWTP
+
 ```{r}
-# N and P after WWTP treatment
-connected_n_treat<-sum(nutri_connected$N_final) * 0.001
-connected_p_treat<-sum(nutri_connected$P_final) * 0.001
-
-connected_n_treat
-connected_p_treat
-
+conn_N_eff/n_effluent
+conn_P_eff/p_effluent
 ```
 
 ```{r}
-# Percent of N and P emissions released into environment
-sum(nutri_connected$N_final)/sum(nutri_connected$N)
-sum(nutri_connected$P_final)/sum(nutri_connected$P)
+conn_N_ex <- residential_N %>% 
+  filter(Type == "Connected")%>% 
+  dplyr::select("Excreted") %>% 
+  unique()
 
+conn_P_ex <- residential_P %>% 
+  filter(Type == "Connected") %>% 
+  dplyr::select("Excreted") %>% 
+  unique
 
-sum(nutri_connected$P_final)/sum(nutri_connected$N_final)
-```
-
-Correlation between Fiji Water Authoriy estimates and our estimates
-
-```{r}
-nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
-  mutate(ID = ifelse(STP == "ACS", NA,
-                     ifelse(STP == "Deuba", 1,
-                            ifelse(STP == "Kinoya", 2,
-                                   ifelse(STP == "Naboro", NA,
-                                          ifelse(STP == "Nadali", 3,
-                                                 ifelse(STP ==  "Namara", 4,
-                                                        ifelse(STP == "Lautoka", 5,
-                                                               ifelse(STP ==  "Navakai", 6,
-                                                                      ifelse(STP == "Olosara", 7,
-                                                                             ifelse(STP == "Ba", 8,
-                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))),
-         nutri_left = (1-rm_eff)) %>% 
-  filter(!STP == "ACS",
-         !STP == "Naboro") 
-
-N_removal<-nutri_removal %>% 
-  filter(type == "N",
-        !is.na(ID) == T) %>% 
-  rename(N_left = nutri_left) %>% 
-  dplyr::select(STP, ID, Raw, Final)%>% 
-  rename(N_raw = Raw,
-         N_eff_actual = Final)
-
-P_removal<-nutri_removal %>% 
-  filter(type == "P",
-         !is.na(ID) == T) %>% 
-  rename(P_left = nutri_left) %>% 
-  dplyr::select(STP, ID, Raw, Final) %>% 
-  rename(P_raw = Raw,
-         P_eff_actual = Final)
-  
+conn_N_ex
+conn_P_ex
 ```
 
 ```{r}
-wwtp_compare<-full_join(nutri_connected, N_removal, by = c("ID", "STP")) %>% 
-  full_join(., P_removal)
+conn_N_eff
+conn_P_eff
 ```
 
 ```{r}
-cor.test(wwtp_compare$N_final, wwtp_compare$N_eff_actual, method = "pearson")
-cor.test(wwtp_compare$P_final, wwtp_compare$P_eff_actual, method = "pearson")
+conn_N_eff/conn_N_ex
+conn_P_eff/conn_P_ex
+```
+Correlation/validation with WWTP values
+
+
+```{r}
+wwtp_compare<-read.csv(here("output_data/Sensitivity/WWTP_compare_nutrients.csv"))
+
+```
+
+
+```{r}
+cor.test(wwtp_compare$N_final*0.001, wwtp_compare$N_eff_actual, method = "pearson")
+cor.test(wwtp_compare$P_final*0.001, wwtp_compare$P_eff_actual, method = "pearson")
 ```
 
 ## Septic
 
 ```{r}
-test<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp"))
+septic_N_ex <- residential_N %>% 
+  filter(Type == "Septic")%>% 
+  dplyr::select("Excreted") %>% 
+  unique()
 
-test_septic<-test %>% 
-  filter(type == "Septic")
-
-sum(test_septic$N) * 0.001
-```
-
-
-```{r}
-N_cell_septic<-raster(here("output_data/Nutrients/Septic_N.tif"))
-
-P_cell_septic<-raster(here("output_data/Nutrients/Septic_P.tif"))
+septic_P_ex <- residential_P %>% 
+  filter(Type == "Septic") %>% 
+  dplyr::select("Excreted") %>% 
+  unique()
 
 ```
 
-Coastal septic/direct
-
 ```{r}
-coastal_septic<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp"))
+septic_N_eff <- residential_N %>% 
+  filter(Type == "Septic")%>% 
+  dplyr::select("Effluent") %>% 
+  unique()
 
-coastal_direct<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp"))
-```
+septic_P_eff <- residential_P %>% 
+  filter(Type == "Septic") %>% 
+  dplyr::select("Effluent") %>% 
+  unique()
 
-This is the amount of N/P through septic systems assuming 10% nutrient removal in tonnes/year
+coastal_septic_N_eff <- residential_N %>% 
+  filter(Type == "Coastal_septic")%>% 
+  dplyr::select("Effluent") %>% 
+  unique()
 
-```{r}
-septic_n<-cellStats(N_cell_septic, sum, na.rm = T) * 0.001
-septic_p<-cellStats(P_cell_septic, sum , na.rm = T) * 0.001
-```
-
-# final amount in environment
-
-This is the amount that makes it into surface waters considering a 50 m lateral travel distance and 10% leaching from rivers and coasts
-
-```{r}
-septic_leach<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp"))
-
-septic_leach_n<-sum(septic_leach$N_leach) * 0.001
-septic_leach_p<-sum(septic_leach$P_leach) * 0.001
-```
-
-```{r}
-coast_septic_n<-sum(coastal_septic$septic_N*0.1)* 0.001
-coast_septic_p<-sum(coastal_septic$septic_P*0.1)* 0.001
-```
-
-```{r}
-total_septic_n<-septic_leach_n + coast_septic_n
-
-total_septic_p<-septic_leach_p + coast_septic_p
-
-total_septic_n
-total_septic_p
-```
-
-```{r}
-(total_septic_n)/(cellStats(N_cell_septic, sum, na.rm = T) * 0.001)
-(total_septic_p)/(cellStats(P_cell_septic, sum , na.rm = T) * 0.001)
+coastal_septic_P_eff <- residential_P %>% 
+  filter(Type == "Coastal_septic") %>% 
+  dplyr::select("Effluent") %>% 
+  unique()
 
 ```
 
 ## Direct
 
 ```{r}
-N_cell_direct<-raster(here("output_data/Nutrients/Direct_N.tif"))
+direct_N_ex <- residential_N %>% 
+  filter(Type == "Direct")%>% 
+  dplyr::select("Excreted") %>% 
+  unique()
 
-P_cell_direct<-raster(here("output_data/Nutrients/Direct_P.tif"))
-```
-
-
-```{r}
-cellStats(N_cell_direct, sum, na.rm = T) * 0.001
-cellStats(P_cell_direct, sum , na.rm = T) * 0.001
-```
-
-```{r}
-nutri_direct<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_50_buff.csv"))
-
-direct_n_surface<-sum(nutri_direct$N,na.rm = T) * 0.1 * 0.001
-direct_p_surface<-sum(nutri_direct$P,na.rm = T) * 0.1 * 0.001
-
+direct_P_ex <- residential_P %>% 
+  filter(Type == "Direct") %>% 
+  dplyr::select("Excreted") %>% 
+  unique()
 
 ```
 
 ```{r}
-coastal_direct<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp")) 
+direct_N_eff <- residential_N %>% 
+  filter(Type == "Direct")%>% 
+  dplyr::select("Effluent") %>% 
+  unique()
 
-coastal_direct_n<-sum(coastal_direct$direct_N)*0.1*0.001
-coastal_direct_p<-sum(coastal_direct$direct_P)*0.1*0.001
+direct_P_eff <- residential_P %>% 
+  filter(Type == "Direct") %>% 
+  dplyr::select("Effluent") %>% 
+  unique()
+
+coastal_direct_N_eff <- residential_N %>% 
+  filter(Type == "Coastal_direct")%>% 
+  dplyr::select("Effluent") %>% 
+  unique()
+
+coastal_direct_P_eff <- residential_P %>% 
+  filter(Type == "Coastal_direct") %>% 
+  dplyr::select("Effluent") %>% 
+  unique()
+
+```
+
+Total excreted
+
+```{r}
+septic_N_ex
+septic_P_ex
 ```
 
 ```{r}
-total_direct_n<-direct_n_surface+coastal_direct_n
-total_direct_p<-direct_p_surface+coastal_direct_p
+(septic_N_eff + coastal_septic_N_eff)/septic_N_ex
 
-total_direct_n
-total_direct_p
+septic_N_eff + coastal_septic_N_eff
+```
+```{r}
+(septic_P_eff + coastal_septic_P_eff)/septic_P_ex
+
+septic_P_eff + coastal_septic_P_eff
 ```
 
 ```{r}
-(total_direct_n)/(cellStats(N_cell_direct, sum, na.rm = T) * 0.001)
-(total_direct_p)/(cellStats(P_cell_direct, sum , na.rm = T) * 0.001)
+direct_N_ex
+direct_P_ex
 ```
 
-# Residential nutrients
 
-Total residential nutrients at pourpoints
 
 ```{r}
-total_n_surface<-connected_n_treat+total_septic_n + total_direct_n
+(direct_N_eff + coastal_direct_N_eff)/direct_N_ex
 
-total_p_surface<-connected_p_treat+total_septic_p + total_direct_p
-
-total_n_surface
-total_p_surface
+direct_N_eff + coastal_direct_N_eff
 ```
 
 ```{r}
-connected_n_treat/total_n_surface
-connected_p_treat/total_p_surface
+(direct_P_eff + coastal_direct_P_eff)/direct_P_ex
+
+direct_P_eff + coastal_direct_P_eff
 ```
 
 ```{r}
-(coast_septic_n+coastal_direct_n)/(total_septic_n+total_direct_n)
-
-(coast_septic_p+coastal_direct_p)/(total_septic_p+total_direct_p)
+coastal_septic_N_eff/(septic_N_eff + coastal_septic_N_eff)
+coastal_direct_N_eff/(direct_N_eff + coastal_direct_N_eff)
 ```
 
-# Max septic/direct with buffers
-
-```{r}
-coastal_buff<-read.csv(here("output_data/Sensitivity/Coastal_leaching_buffer_sensitivity.csv"))
-
-river_buff<-read.csv(here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv"))
-```
-
-Max septic
-```{r}
-coast_max<-coastal_buff %>% 
-  filter(leach_rate == 1.0,
-         buffer == 500)
-
-river_max<-river_buff %>% 
-  filter(leach_rate == 1.0,
-         buffer == 500)
-
-all<-full_join(coast_max, river_max)
-```
-
-```{r}
-septic_max<-all %>% 
-  filter(type == "septic")
-
-sum(septic_max$N)*0.001
-sum(septic_max$P)*0.001
-```
-
-```{r}
-direct_max<-all %>% 
-  filter(type == "direct")
-
-sum(direct_max$N)*0.001
-sum(direct_max$P)*0.001
-```
