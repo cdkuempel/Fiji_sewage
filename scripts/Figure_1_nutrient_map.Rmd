@@ -1,0 +1,160 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "16/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(raster)
+library(leaflet)
+library(shiny)
+library(tmap)
+library(here)
+library(sf)
+library(tidyverse)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Fiji basins/Fiji outline
+
+```{r}
+fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  filter(!MAIN_BAS %in% c(5120082250)) 
+
+fiji_basins<-st_transform(fiji_basins12, t_crs) %>% 
+  dplyr::select(MAIN_BAS, area_km2) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_area = sum(area_km2, na.rm = T))
+```
+
+# Unconnected
+
+```{r}
+septic<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BA) %>% 
+  summarise(total_N_tonnes = sum(N, na.rm = T)*0.001,
+            total_P_tonnes = sum(P, na.rm = T)*0.001) %>% 
+  rename(MAIN_BAS = MAIN_BA)
+```
+
+```{r}
+direct<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_direct_pourpoints.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BA) %>% 
+  summarise(total_N_tonnes = sum(N, na.rm = T)*0.001,
+            total_P_tonnes = sum(P, na.rm = T)*0.001) %>% 
+  rename(MAIN_BAS = MAIN_BA)
+```
+# Combine with basin shapefile
+
+```{r}
+septic_nutri_basin<-full_join(fiji_basins, septic, by = "MAIN_BAS")
+
+septic_nutri_basin2<-septic_nutri_basin %>% 
+  mutate(total_N_tonnes = as.numeric(total_N_tonnes),
+         total_N_tonnes = ifelse(is.na(total_N_tonnes) == T, 0, as.numeric(total_N_tonnes)))
+```
+
+```{r}
+direct_nutri_basin<-full_join(fiji_basins, direct, by = "MAIN_BAS")
+
+direct_nutri_basin2<-direct_nutri_basin %>% 
+  mutate(total_N_tonnes = as.numeric(total_N_tonnes),
+         total_N_tonnes = ifelse(is.na(total_N_tonnes) == T, 0, as.numeric(total_N_tonnes)))
+```
+
+
+# Plot
+```{r}
+septic_nutri<-tm_shape(septic_nutri_basin2) +
+    tm_polygons(col = "total_N_tonnes",
+                style = "cont",
+                title = "Nitrogen\n(tonnes)") +
+  tm_layout(title = "Septic") 
+
+septic_nutri
+```
+
+```{r}
+direct_nutri<-tm_shape(direct_nutri_basin2) +
+    tm_polygons(col = "total_N_tonnes",
+                style = "cont",
+                title = "Nitrogen\n(tonnes)") +
+  tm_layout(title = "Direct") 
+
+direct_nutri
+```
+
+# Connected
+
+```{r}
+connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp")) %>% 
+  mutate(N_tonnes = N_final*0.001)
+```
+```{r}
+basins_diss<-fiji_basins %>% 
+  mutate(ID = as.numeric(1)) %>% 
+  group_by(ID) %>% 
+  summarise(total_area_km2 = sum(total_area, na.rm = T))
+```
+
+
+```{r}
+connected_nutri_plot<-tm_shape(basins_diss) +
+  tm_borders() +
+  tm_shape(connected)+
+  tm_bubbles(col = "N_tonnes",
+             style = "cont",
+             size = 0.5,
+             border.col = "black", 
+             border.lwd = 2, 
+             title.shape = "Nitrogen\n(tonnes)", 
+             title.col = "Nitrogen\n(tonnes)") +
+  tm_layout(title = "Connected") #+
+  #tm_text("label", size = 1, auto.placement = 1.5, col = "darkblue")
+
+connected_nutri_plot
+```
+# Tourism
+
+```{r}
+tourist<-read.csv(here("output_data/Tourism/Treated_tourist_nutrients.csv")) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_N_tonnes = sum(Treated_N, na.rm = T)*0.001,
+            total_P_tonnes = sum(Treated_P, na.rm = T)*0.001)
+```
+
+```{r}
+basin_tourism<-full_join(fiji_basins, tourist, by = "MAIN_BAS")
+```
+
+```{r}
+tourism_nutri<-tm_shape(basin_tourism) +
+    tm_polygons(col = "total_N_tonnes",
+                style = "cont",
+                title = "Nitrogen\n(tonnes)") +
+  tm_layout(title = "Tourism") 
+
+tourism_nutri
+```
+# All together
+
+```{r}
+nutri_final<-tmap_arrange(direct_nutri, septic_nutri, connected_nutri_plot, tourism_nutri, nrow = 1)
+
+nutri_final
+```
+
+```{r}
+tmap_save(nutri_final, here("figures/Nutrient_treatment_map.png"), dpi = 300, width = 10, height = 5)
+```
+

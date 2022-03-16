@@ -1,0 +1,59 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "16/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+nutri<-read.csv(here("output_data/Results/Nutrient_results.csv"))
+```
+
+```{r}
+nutri2<- nutri %>% 
+  mutate(type2 = ifelse(Type == "Coastal_septic", "Septic",
+         ifelse(Type == "Coastal_direct", "Direct",
+                ifelse(Type == "Tourism_primary", "Tourism",
+                       ifelse(Type == "Tourism_secondary", "Tourism",
+                              ifelse(Type == "Tourism_septic", "Tourism", as.character(Type)))))))
+```
+
+```{r}
+nutri_dat<-nutri2 %>% 
+  group_by(type2, Nutrient) %>% 
+  summarise(Excreted= sum(Excreted),
+            Effluent = sum(Effluent))
+
+N_dat<-nutri_dat %>% 
+  filter(Nutrient == "N")
+
+P_dat<-nutri_dat %>% 
+  filter(Nutrient == "P")
+
+total_N = sum(N_dat$Effluent)
+total_P = sum(P_dat$Effluent)
+
+nutri_dat<-nutri_dat %>% 
+  mutate(prop = ifelse(Nutrient == "N", Effluent/total_N, Effluent/total_P))
+
+test<-nutri_dat %>% 
+  filter(Nutrient == "N")
+
+sum(test$prop)
+```
+
+```{r}
+ggplot(nutri_dat, aes(x = Nutrient, y = Effluent, fill = type2)) +
+  geom_bar(position = "stack", stat = "identity") +
+  theme_minimal() 
+```
+
+```{r}
+ggplot(nutri_dat, aes(x = Nutrient, y = prop, fill = type2)) +
+  geom_bar(position = "stack", stat = "identity") +
+  theme_minimal()
+```
