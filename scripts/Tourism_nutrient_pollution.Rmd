@@ -594,9 +594,9 @@ Smaller resorts (~65) and backpackers accomodations (1-30 rooms) usually have se
 
 To be conservative we assign large hotels secondary treatment, medium-sized resorts primary treatment and smaller resorts septic tank treatment for N and P
 
-Primary treatment = 10% removal for both N and P
+Primary treatment = 20% removal for both N and P
 Secondary treatment = 40% for N and 45% for P 
-Septic system = 10% (same as primary treatment)
+Septic system = 20% (same as primary treatment)
 
 
 ```{r}
@@ -692,19 +692,20 @@ sum(test_treat$Type_N, na.rm = T)
 ```{r}
 
 tourist_treated_final<-tourist_treated %>% 
-  mutate(Treated_N = ifelse(treatment_level == "Primary", Type_N * prop_treat * 0.9,
+  mutate(Treated_N = ifelse(treatment_level == "Primary", Type_N * prop_treat * 0.8,
                           ifelse(treatment_level == "Secondary", Type_N * prop_treat * 0.6,
-                              ifelse(treatment_level == "Septic", Type_N * prop_treat * 0.9, NA))),
-       Treated_P = ifelse(treatment_level == "Primary", Type_P * prop_treat * 0.9,
+                              ifelse(treatment_level == "Septic", Type_N * prop_treat * 0.8, NA))),
+       Treated_P = ifelse(treatment_level == "Primary", Type_P * prop_treat * 0.8,
                           ifelse(treatment_level == "Secondary", Type_P * prop_treat * 0.55,
-                              ifelse(treatment_level == "Septic", Type_P * prop_treat * 0.9, NA)))) %>% 
+                              ifelse(treatment_level == "Septic", Type_P * prop_treat * 0.8, NA)))) %>% 
   dplyr::select(TIKINA, MAIN_BAS, Area.1, treatment_level, prop_treat, Tourist_N, Tourist_P, Type_N, Type_P, Treated_N, Treated_P) 
 
 test<-tourist_treated_final %>% 
   filter(Area.1 == "Coral Coast") 
 
 tourist_treated_df<-tourist_treated_final %>% 
-  as.data.frame() 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
 
 write.csv(tourist_treated_df, here("output_data/Tourism/Treated_tourist_nutrients.csv"))
 ```
