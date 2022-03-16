@@ -26,7 +26,9 @@ fiji_pop_df<-cellStats(pop_ras_proj, "sum")
 ```
 
 ```{r}
-connected_pop<-read.csv(here("output_data/Sewage_plants/Connected_population_by_STP.csv"))
+connected_pop<-raster(here("output_data/Population/Connected_population.tif"))
+
+conn_pop<-cellStats(connected_pop, "sum", na.rm = T)
 ```
 
 # Fiji population
@@ -37,13 +39,18 @@ fiji_pop_df
 
 # Connected population
 ```{r}
-conn_pop<-sum(connected_pop$stp_pop)
-
 prop_pop<-conn_pop/fiji_pop_df
 
 conn_pop
 prop_pop
 ```
+Difference from Fiji's population estimates
+
+```{r}
+(fiji_pop_df-889953)/889953
+```
+
+
 In 2007, the STP serviced ~194,700 people (23% of population) - Fiji National Wastewater Plan
 ```{r}
 (conn_pop-194700)/194700
@@ -84,3 +91,15 @@ direct_pop/fiji_pop_df
 ```{r}
 (conn_pop + septic_pop + direct_pop)/fiji_pop_df
 ```
+
+
+
+```{r}
+pop_results<-data.frame(type = c("total", "connected", "septic", "direct"), Pop = c(fiji_pop_df, conn_pop, septic_pop, direct_pop))
+
+pop_results<-pop_results %>% 
+  mutate(prop = Pop/fiji_pop_df)
+
+write.csv(pop_results, here("output_data/Results/Population_by_treatment.csv"))
+```
+
