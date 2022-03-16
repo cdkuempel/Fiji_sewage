@@ -52,13 +52,33 @@ ggsave(here("figures/Supp_reported_estimated_WWTP_population.png"), dpi =300, wi
 # Estimated WWTP nutrients vs reported
 
 ```{r}
-nutri_connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp"))
+wwtp_compare<-read.csv(here("output_data/Sensitivity/WWTP_compare_nutrients.csv"))
+```
+
+```{r}
+actual<-wwtp_compare %>% 
+  dplyr::select(STP.x,N_eff_actual, P_eff_actual) %>% 
+  pivot_longer(., cols = c("N_eff_actual", "P_eff_actual"), names_to = "type", values_to = "Actual") %>% 
+  mutate(type2 = ifelse(type == "N_eff_actual", "N", "P")) %>% 
+  dplyr::select(-type) %>% 
+  rename(type = type2)
+
+estimated<-wwtp_compare %>% 
+  dplyr::select(STP.x, N_final, P_final) %>% 
+  pivot_longer(., cols = c("N_final", "P_final"), names_to = "type", values_to = "Estimated") %>% 
+  mutate(type2 = ifelse(type == "N_final", "N", "P"),
+         Estimated = Estimated*0.001) %>% 
+  dplyr::select(-type) %>% 
+  rename(type = type2) 
+
+
+wwtp_compare2<-full_join(actual, estimated)
 ```
 
 
 
 ```{r}
-ggplot(wwtp_compare2, aes(x = Estimated/1000, y = Actual, col = STP)) +
+ggplot(wwtp_compare2, aes(x = Estimated, y = Actual, col = STP.x)) +
   geom_point(size = 2) +
   facet_wrap(~type, scales = "free") +
   ylab("Estimated effluent (tonnes)") +
