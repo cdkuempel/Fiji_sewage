@@ -1,0 +1,349 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "04/03/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(raster)
+library(here)
+library(sf)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+
+# Nutrients by treatment types
+
+```{r}
+conn_n<-raster(here("output_data/Nutrients/Connected_N.tif"))
+conn_p<-raster(here("output_data/Nutrients/Connected_P.tif"))
+```
+
+```{r}
+septic_n<-raster(here("output_data/Nutrients/Septic_N.tif"))
+septic_p<-raster(here("output_data/Nutrients/Septic_P.tif"))
+```
+
+```{r}
+direct_n<-raster(here("output_data/Nutrients/Direct_N.tif"))
+direct_p<-raster(here("output_data/Nutrients/Direct_P.tif"))
+```
+
+```{r}
+conn_n_sum<-cellStats(conn_n, sum, na.rm = T)
+conn_p_sum<-cellStats(conn_p, sum, na.rm = T)
+
+septic_n_sum<-cellStats(septic_n, sum, na.rm = T)
+septic_p_sum<-cellStats(septic_p, sum, na.rm = T)
+
+direct_n_sum<-cellStats(direct_n, sum, na.rm = T)
+direct_p_sum<-cellStats(direct_p, sum, na.rm = T)
+```
+
+Nutrients without treatment
+
+```{r}
+total_n<-conn_n_sum + septic_n_sum + direct_n_sum
+total_p<-conn_p_sum + septic_p_sum + direct_p_sum
+
+total_n_tonnes<-total_n*0.001
+total_p_tonnes<-total_p*0.001
+```
+
+```{r}
+total_n_tonnes
+total_p_tonnes
+```
+
+
+## Connected
+
+```{r}
+nutri_rm_connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp"))
+```
+
+The below values are in kg/year
+```{r}
+
+# Total N and P human emissions after treatment
+connected_n_rm<-sum(nutri_rm_connected$N_final) * 0.001
+connected_p_rm<-sum(nutri_rm_connected$P_final) * 0.001
+
+connected_n_rm
+connected_p_rm
+```
+
+```{r}
+conn_n_sum*0.001
+conn_p_sum*0.001
+```
+
+
+```{r}
+# Percent of N and P emissions released into environment
+conn_treat_n<-sum(nutri_rm_connected$N_final)
+conn_treat_p<-sum(nutri_rm_connected$P_final)
+
+conn_treat_n/conn_n_sum
+conn_treat_p/conn_p_sum
+
+
+conn_treat_p/conn_treat_n
+```
+
+Correlation between Fiji Water Authoriy estimates and our estimates
+
+```{r}
+nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+  mutate(ID = ifelse(STP == "ACS", NA,
+                     ifelse(STP == "Deuba", 1,
+                            ifelse(STP == "Kinoya", 2,
+                                   ifelse(STP == "Naboro", NA,
+                                          ifelse(STP == "Nadali", 3,
+                                                 ifelse(STP ==  "Namara", 4,
+                                                        ifelse(STP == "Lautoka", 5,
+                                                               ifelse(STP ==  "Navakai", 6,
+                                                                      ifelse(STP == "Olosara", 7,
+                                                                             ifelse(STP == "Ba", 8,
+                                                                                    ifelse(STP == "Wailada", NA, NA))))))))))),
+         nutri_left = (1-rm_eff)) %>% 
+  filter(!STP == "ACS",
+         !STP == "Naboro") 
+
+N_removal<-nutri_removal %>% 
+  filter(type == "N",
+        !is.na(ID) == T) %>% 
+  rename(N_left = nutri_left) %>% 
+  dplyr::select(STP, ID, Raw, Final)%>% 
+  rename(N_raw = Raw,
+         N_eff_actual = Final)
+
+P_removal<-nutri_removal %>% 
+  filter(type == "P",
+         !is.na(ID) == T) %>% 
+  rename(P_left = nutri_left) %>% 
+  dplyr::select(STP, ID, Raw, Final) %>% 
+  rename(P_raw = Raw,
+         P_eff_actual = Final)
+  
+```
+
+```{r}
+wwtp_compare<-full_join(nutri_rm_connected, N_removal, by = c("ID")) %>% 
+  full_join(., P_removal, by = "ID")
+```
+
+```{r}
+wwtp_compare_df<-wwtp_compare %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+write.csv(wwtp_compare_df, here("output_data/Sensitivity/WWTP_compare_nutrients.csv"))
+```
+
+```{r}
+cor.test(wwtp_compare$N_final*0.001, wwtp_compare$N_eff_actual, method = "pearson")
+cor.test(wwtp_compare$P_final*0.001, wwtp_compare$P_eff_actual, method = "pearson")
+```
+# Amount at pourpoints
+
+```{r}
+pp<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp"))
+```
+
+## Septic
+
+```{r}
+septic_pp<-pp %>% 
+  filter(type == "Septic")
+
+septic_n_pp<-sum(septic_pp$N) * 0.001
+septic_p_pp<-sum(septic_pp$P) *0.001
+```
+
+```{r}
+coastal_septic_pp<-pp %>% 
+  filter(type == "Coastal_septic")
+
+coastal_septic_n_pp<-sum(coastal_septic_pp$N) * 0.001
+coastal_septic_p_pp<-sum(coastal_septic_pp$P) *0.001
+```
+
+
+```{r}
+total_septic_n<-septic_n_pp + coastal_septic_n_pp
+total_septic_p<-septic_p_pp + coastal_septic_p_pp
+```
+
+```{r}
+(total_septic_n)/(septic_n_sum * 0.001)
+(total_septic_p)/(septic_p_sum * 0.001)
+
+```
+```{r}
+coastal_septic_n_pp/(total_septic_n)
+```
+## Direct
+
+```{r}
+direct_pp<-pp %>% 
+  filter(type == "Direct")
+
+direct_n_pp<-sum(direct_pp$N) * 0.001
+direct_p_pp<-sum(direct_pp$P) *0.001
+```
+
+```{r}
+coastal_direct_pp<-pp %>% 
+  filter(type == "Coastal_direct")
+
+coastal_direct_n_pp<-sum(coastal_direct_pp$N) * 0.001
+coastal_direct_p_pp<-sum(coastal_direct_pp$P) *0.001
+```
+
+
+```{r}
+total_direct_n<-direct_n_pp+coastal_direct_n_pp
+total_direct_p<-direct_p_pp+coastal_direct_p_pp
+
+total_direct_n
+total_direct_p
+```
+
+```{r}
+(total_direct_n)/(direct_n_sum * 0.001)
+(total_direct_p)/(direct_p_sum * 0.001)
+```
+
+```{r}
+coastal_direct_n_pp/(total_direct_n)
+```
+
+# Residential nutrients
+
+Total residential nutrients at pourpoints
+
+```{r}
+total_n_surface<-(conn_treat_n*0.001)+total_septic_n + total_direct_n
+
+total_p_surface<-(conn_treat_p*0.001)+total_septic_p + total_direct_p
+
+total_n_surface
+total_p_surface
+```
+
+```{r}
+(conn_treat_n*0.001)/total_n_surface
+(conn_treat_p*0.001)/total_p_surface
+```
+
+```{r}
+(coastal_septic_n_pp+coastal_direct_n_pp)/(total_septic_n+total_direct_n)
+
+(coastal_septic_p_pp+coastal_direct_p_pp)/(total_septic_p+total_direct_p)
+```
+
+# Tourism
+
+
+```{r}
+tourist<-read.csv(here("output_data/Tourism/Treated_tourist_nutrients.csv"))
+```
+
+```{r}
+primary_tourism<-tourist %>% 
+  filter(treatment_level == "Primary")
+
+secondary_tourism<-tourist %>% 
+  filter(treatment_level == "Secondary")
+
+septic_tourism<-tourist %>% 
+  filter(treatment_level == "Septic")
+```
+
+```{r}
+primary_tourism_N<-sum(primary_tourism$Tourist_N, na.rm = T)*0.001
+primary_tourism_P<-sum(primary_tourism$Tourist_P, na.rm = T)*0.001
+
+secondary_tourism_N<-sum(secondary_tourism$Tourist_N, na.rm = T)*0.001
+secondary_tourism_P<-sum(secondary_tourism$Tourist_P, na.rm = T)*0.001
+
+septic_tourism_N<-sum(septic_tourism$Tourist_N, na.rm = T)*0.001
+septic_tourism_P<-sum(septic_tourism$Tourist_P, na.rm = T)*0.001
+```
+
+
+```{r}
+primary_tourism_N_treat<-sum(primary_tourism$Treated_N, na.rm = T)*0.001
+primary_tourism_P_treat<-sum(primary_tourism$Treated_P, na.rm = T)*0.001
+
+secondary_tourism_N_treat<-sum(secondary_tourism$Treated_N, na.rm = T)*0.001
+secondary_tourism_P_treat<-sum(secondary_tourism$Treated_P, na.rm = T)*0.001
+
+septic_tourism_N_treat<-sum(septic_tourism$Treated_N, na.rm = T)*0.001
+septic_tourism_P_treat<-sum(septic_tourism$Treated_P, na.rm = T)*0.001
+```
+
+
+# Combine data
+```{r}
+nutrient_results_n<-data.frame(Type = c("Connected", "Septic", "Direct", "Coastal_septic", "Coastal_direct", "Tourism_primary", "Tourism_secondary", "Tourism_septic"), Nutrient = "N",
+                             Excreted = c(conn_n_sum*0.001, septic_n_sum*0.001, direct_n_sum*0.001,0,0, primary_tourism_N, secondary_tourism_N, septic_tourism_N), Effluent = c(conn_treat_n*0.001, septic_n_pp, direct_n_pp, coastal_septic_n_pp, coastal_direct_n_pp, primary_tourism_N_treat, secondary_tourism_N_treat, septic_tourism_N_treat))
+```
+
+```{r}
+nutrient_results_p<-data.frame(Type = c("Connected", "Septic", "Direct", "Coastal_septic", "Coastal_direct", "Tourism_primary", "Tourism_secondary", "Tourism_septic"), Nutrient = "P",
+                             Excreted = c(conn_p_sum*0.001, septic_p_sum*0.001, direct_p_sum*0.001,0,0,primary_tourism_P, secondary_tourism_P, septic_tourism_P), Effluent = c(conn_treat_p*0.001, septic_p_pp, direct_p_pp, coastal_septic_p_pp, coastal_direct_p_pp, primary_tourism_P_treat, secondary_tourism_P_treat, septic_tourism_P_treat))
+```
+
+```{r}
+all_nutrient_results<-full_join(nutrient_results_n, nutrient_results_p)
+```
+
+```{r}
+write.csv(all_nutrient_results, here("output_data/Results/Nutrient_results.csv"))
+```
+
+# Max septic/direct with buffers
+
+```{r}
+coastal_buff<-read.csv(here("output_data/Sensitivity/Coastal_leaching_buffer_sensitivity.csv"))
+
+river_buff<-read.csv(here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv"))
+```
+
+Max septic
+```{r}
+coast_max<-coastal_buff %>% 
+  filter(leach_rate == 1.0,
+         buffer == 500)
+
+river_max<-river_buff %>% 
+  filter(leach_rate == 1.0,
+         buffer == 500)
+
+all<-full_join(coast_max, river_max)
+```
+
+```{r}
+septic_max<-all %>% 
+  filter(type == "septic")
+
+sum(septic_max$N)*0.001
+sum(septic_max$P)*0.001
+```
+
+```{r}
+direct_max<-all %>% 
+  filter(type == "direct")
+
+sum(direct_max$N)*0.001
+sum(direct_max$P)*0.001
+```
