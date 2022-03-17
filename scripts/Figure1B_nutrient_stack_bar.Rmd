@@ -10,6 +10,12 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+library(ggplot2)
+library(patchwork)
+library(here)
+```
+
+```{r}
 nutri<-read.csv(here("output_data/Results/Nutrient_results.csv"))
 ```
 
@@ -47,13 +53,31 @@ sum(test$prop)
 ```
 
 ```{r}
-ggplot(nutri_dat, aes(x = Nutrient, y = Effluent, fill = type2)) +
+tonnes_bar<-ggplot(nutri_dat, aes(x = Nutrient, y = Effluent, fill = type2)) +
   geom_bar(position = "stack", stat = "identity") +
-  theme_minimal() 
+  theme_minimal() +
+  theme(legend.position="none") +
+  scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4")) #+
+#  labs(fill = "Source")
+
+tonnes_bar
 ```
 
 ```{r}
-ggplot(nutri_dat, aes(x = Nutrient, y = prop, fill = type2)) +
+prop_bar<-ggplot(nutri_dat, aes(x = Nutrient, y = prop, fill = type2)) +
   geom_bar(position = "stack", stat = "identity") +
-  theme_minimal()
+  theme_minimal() +
+  scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4"))+
+  labs(fill = "Source")
+
+prop_bar
 ```
+
+```{r}
+tonnes_bar + prop_bar
+```
+
+```{r}
+ggsave(here("figures/Treatment_nutrients_bar_chart.png"), width = 10, height = 5, dpi = 300)
+```
+
