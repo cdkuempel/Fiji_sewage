@@ -175,7 +175,7 @@ N_P_buffers2<-N_P_buffers[grep(N_P_buffers, pattern = "Coast")]
 N_P_buffers3<-N_P_buffers[!N_P_buffers %in% N_P_buffers2]
 
 leach<-seq(0.1,1,by = 0.1)
-treatment<-seq(0.1,1, by = 0.1)
+treatment<-seq(0,1, by = 0.1)
 df2<-c()
 df3<-c()
 
@@ -242,8 +242,8 @@ for(i in 1:length(N_P_buffers_direct3)){
   for(k in 1:length(leach)){
     rm(df)
     print(leach[k])
-    n_leach<-n*leach[k]
-    p_leach<-p*leach[k]
+    n_leach<-n_treat*leach[k]
+    p_leach<-p_treat*leach[k]
     
     df<-data.frame(buffer = buff, treatment_rate = treatment[z], N = n, P = p, N_treat = n_treat, P_treat = p_treat, leach_rate = leach[k], N_leach = n_leach, P_leach = p_leach)
     
