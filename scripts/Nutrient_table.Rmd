@@ -314,36 +314,45 @@ write.csv(all_nutrient_results, here("output_data/Results/Nutrient_results.csv")
 # Max septic/direct with buffers
 
 ```{r}
-coastal_buff<-read.csv(here("output_data/Sensitivity/Coastal_leaching_buffer_sensitivity.csv"))
+coastal_buff<-read.csv(here("output_data/Sensitivity/Coastal_septic_treatment_leach_buffer_analysis.csv"))
 
-river_buff<-read.csv(here("output_data/Sensitivity/Leaching_buffer_sensitivity.csv"))
+river_buff<-read.csv(here("output_data/Sensitivity/Septic_treatment_leach_buffer_analysis.csv"))
+
+direct_coastal_buff<-read.csv(here("output_data/Sensitivity/Coastal_direct_treatment_leach_buffer_analysis.csv"))
+direct_river_buff<-read.csv(here("output_data/Sensitivity/Direct_treatment_leach_buffer_analysis.csv"))
 ```
 
 Max septic
 ```{r}
 coast_max<-coastal_buff %>% 
-  filter(leach_rate == 1.0,
+  filter(treatment_rate == 0.2,
+         leach_rate == 1.0,
          buffer == 500)
 
 river_max<-river_buff %>% 
-  filter(leach_rate == 1.0,
+  filter(treatment_rate == 0.2,
+         leach_rate == 1.0,
          buffer == 500)
 
-all<-full_join(coast_max, river_max)
+(unique(coast_max$N_leach) + unique(river_max$N_leach))*0.001
+(unique(coast_max$P_leach) + unique(river_max$P_leach))*0.001
 ```
 
+Max direct
 ```{r}
-septic_max<-all %>% 
-  filter(type == "septic")
+direct_coast_max<-direct_coastal_buff %>% 
+  filter(treatment_rate == 0.2,
+         leach_rate == 1.0,
+         buffer == 500)
 
-sum(septic_max$N)*0.001
-sum(septic_max$P)*0.001
+direct_river_max<-direct_river_buff %>% 
+  filter(treatment_rate == 0.2,
+         leach_rate == 1.0,
+         buffer == 500)
+
+(unique(direct_coast_max$N_leach) + unique(direct_river_max$N_leach))*0.001
+
+(unique(direct_coast_max$P_leach) + unique(direct_river_max$P_leach))*0.001
 ```
 
-```{r}
-direct_max<-all %>% 
-  filter(type == "direct")
 
-sum(direct_max$N)*0.001
-sum(direct_max$P)*0.001
-```
