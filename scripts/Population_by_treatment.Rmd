@@ -57,6 +57,17 @@ pop_ras_proj<-setMinMax(pop_ras_proj)
 ```
 
 
+```{r}
+fiji_pop_df<-cellStats(pop_ras_proj, "sum")
+
+pop_df<-rasterToPoints(pop_ras_proj) %>% 
+  as.data.frame()
+
+fiji_pop_df
+# Population is 887648
+```
+
+
 # Connected populations
 
 STP Watershed boundaries
@@ -73,11 +84,16 @@ stp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp")) %>%
   summarise(area = sum(area, na.rm = T)) %>% 
   filter(!is.na(STP) == T,
          !STP %in% c("ACS WWTP", "Naboro WWTP", "Wailada WWTP"))
+
+#expand_stp<-st_buffer(stp, dist = (as.numeric(stp$area)*0.0001)) #expand by 0.01%
   
 stp2<-stp %>% 
   mutate(stp_pop = exact_extract(pop_ras_proj, ., fun = "sum"),
          ID = 1:nrow(stp))
+
+
 ```
+
 ```{r}
 stp_df<-stp2 %>% 
   as.data.frame() %>% 
@@ -96,16 +112,7 @@ writeRaster(stp_ID_ras, here("output_data/Sewage_plants/STP_ID_raster.tif"), ove
 # Summarise population within each STP watershed
 
 ```{r}
-fiji_pop_df<-cellStats(pop_ras_proj, "sum")
-
-pop_df<-rasterToPoints(pop_ras_proj) %>% 
-  as.data.frame()
-
- # Population is 887648
-```
-
-```{r}
-stp_ras<-mask(pop_ras_proj, stp)
+stp_ras<-raster::mask(pop_ras_proj, stp)
 
 cellStats(stp_ras, "sum")
 
@@ -165,20 +172,45 @@ pop_check<- stp2 %>%
 write.csv(pop_check,here("output_data/Sewage_plants/STP_population_check.csv"))
 ```
 
+# Urban
 
-# Unconnected
+GRUMP data
 
-Crop STP cathcments from population raster
+ATTRIBUTE FIELDS
+VALUE	Integer, where 1 = rural and 2 = urban.
+NB: Large water bodies have been masked and thus appear as "no data"
 
 ```{r}
-unconnected_ras<-mask(pop_ras_proj, stp, inverse = T)
+#grump<-raster(here("raw_data/Population/fjiurextents.asc"))
+#grump_prj<-projectRaster(grump, crs = crs(pop_ras))
+#grump_fiji<-crop(grump_prj, pop_ras)
+#grump_fiji_prj<-projectRaster(grump_fiji, crs = t_crs)
+#grump_fiji_res<-resample(grump_fiji_prj, pop_ras_proj)
+  
 ```
 
-# Septic population
+```{r}
+#urban_ras<-grump_fiji_res
+#urban_ras[urban_ras<2]<-0
+#urban_ras[urban_ras >0]<-1
+```
 
-Source: Fiji liquid waste management strategy and action plan 2007
 
-40% of the population uses septic systems
+```{r}
+#urban_pop_ras<-pop_ras_proj * urban_ras
+#urban_pop<-cellStats(urban_pop_ras, stat = "sum", na.rm = T) #695055.5
+
+#urban_pop/fiji_pop_df #26% of population is urban, reports state 59.1%
+```
+
+```{r}
+#stp_urban_ras<-stp_ras * urban_pop_ras
+#stp_urban_pop<-cellStats(stp_urban_ras, "sum", na.rm = T)
+
+#stp_urban_pop/urban_pop #17.1%
+```
+
+These estimates are low - lets' look at Jung data.
 
 From Jung et al. IUCN habitat classifications paper
 https://www.nature.com/articles/s41597-020-00599-8.pdf
@@ -195,80 +227,385 @@ urban<-resample(urban, pop_ras_proj)
 urban_pts<-rasterToPoints(urban)
 urban_df<-urban_pts %>% 
   as.data.frame() 
+
+urban_ras<-urban
+urban_ras[urban_ras>0]<-1
+urban_ras[is.na(urban_ras)== T]<-0
 ```
+
+Population that is urban
+
+```{r}
+urban_pop_ras<-pop_ras_proj * urban_ras
+urban_pop<-cellStats(urban_pop_ras, stat = "sum", na.rm = T) #695055.5
+
+urban_pop/fiji_pop_df #78% of population is urban, reports state 59.1%
+```
+
+Percent of urban population that is connected
+
+```{r}
+stp_urban_ras<-stp_ras * urban_pop_ras
+stp_urban_pop<-cellStats(stp_urban_ras, "sum", na.rm = T)
+
+stp_urban_pop/urban_pop #14%
+```
+
+These estimates are high for total population, but still low for urban.
+
+Let's look at Fiji classified "Urban Areas"
+
+```{r}
+ua<-st_read(here("output_data/Population/Urban_area_buffers.shp")) %>% 
+  st_transform(., t_crs)
+```
+
+```{r}
+urban_pop_ua<-as.numeric(extract(pop_ras_proj, ua, fun = sum, na.rm = T))
+
+urban_pop_ua/fiji_pop_df
+
+#58.7% urban
+
+rural_pop<-fiji_pop_df - urban_pop_ua
+
+rural_pop/fiji_pop_df
+```
+
+```{r}
+stp_ua<-extract(stp_ras, ua, fun = sum, na.rm = T)
+
+stp_ua/urban_pop_ua
+
+#29.1% of connected population is urban, should be ~35.4
+```
+
+```{r}
+ua_ras<-fasterize(ua, pop_ras_proj)
+ua_pts<-rasterToPoints(ua_ras)
+ua_df<-ua_pts %>% 
+  as.data.frame()  %>% 
+  rename(urban_area = layer)
+```
+
+
+# Unconnected
+
+Crop STP catchments from population raster
+
+```{r}
+unconnected_ras<-raster::mask(pop_ras_proj, stp, inverse = T)
+```
+
+# Septic population
+
+Source: JMP/Fiji census data 2017/WISH Fiji survey (Nabeela data)
 
 ```{r}
 non_stp<-rasterToPoints(unconnected_ras) %>% 
   as.data.frame() %>% 
-  rename(non_stp = FJI_Pop_Grid_proj )
+  rename(unconnected = FJI_Pop_Grid_proj)
 
-pop_urban<-full_join(pop_df, urban_df, by = c("x", "y")) %>% 
+non_stp<-non_stp %>% 
+  mutate(id = 1:nrow(non_stp))
+
+pop_ua<-full_join(pop_df, ua_df, by = c("x", "y"))
+
+pop_urban<-full_join(pop_ua, urban_df, by = c("x", "y")) %>% 
   full_join(., non_stp, by = c("x", "y")) 
 
-pop_urban<- pop_urban %>% 
-  mutate(id = 1:nrow(pop_urban))
 ```
 
-# Septic
+# Conn urban
 
 ```{r}
-pop_target<-(fiji_pop_df-conn_pop)/2
+stp_ua<-extract(stp_ras, ua, fun = sum, na.rm = T)
 
-pop_target/fiji_pop_df #Should be ~40%
+stp_perc_urban<-as.numeric(stp_ua)/urban_pop_ua
 
-unconnected<-pop_urban %>% 
-  filter(!is.na(non_stp) == T,
+#29.1% of connected population is urban, should be ~35.4
+
+# We could try to add in this amount of urban to STP treatment - for now we do not.
+conn_urban_target<- 0.354 - stp_perc_urban #From Fiji 2017 census/JMP - percent of urban population with septic
+conn_urban_pop_target<-as.numeric(urban_pop_ua*conn_urban_target)
+conn_urban_pop_target
+
+```
+
+# Septic Urban
+
+```{r}
+septic_urban_perc<-0.59 #From Fiji 2017 census/JMP - percent of urban population with septic
+septic_urban_pop_target<-as.numeric(urban_pop_ua*septic_urban_perc)
+septic_urban_pop_target
+
+#Septic urban
+
+urban_cat<-pop_urban %>% 
+  filter(!is.na(unconnected) == T,
          is.na(FJI_Pop_Grid_proj) == F) %>% 
   mutate(urban_bin = ifelse(Fiji_urban>0,1,0)) %>% 
-  dplyr::arrange(desc(Fiji_urban),
-                desc(non_stp)) %>% 
-  mutate(cumpop = cumsum(FJI_Pop_Grid_proj)) 
+  filter(urban_area == 1,
+         urban_bin == 1) %>% 
+  dplyr::arrange(desc(unconnected)) %>% 
+  mutate(cumpop = cumsum(FJI_Pop_Grid_proj))
 
-septic<-unconnected %>% 
-  filter(cumpop<=pop_target) 
+septic_urban<-urban_cat %>% 
+  filter(cumpop<=septic_urban_pop_target) 
 
-septic2<-septic%>% 
+```
+
+
+```{r}
+# Other urban
+other_urban_perc<-0.054 #From Fiji 2017 census/JMP - percent of urban population with septic
+other_urban_pop_target<-as.numeric(urban_pop_ua*other_urban_perc)
+
+other_urban<-urban_cat %>% 
+  filter(cumpop>septic_urban_pop_target) %>% 
+  mutate(cumpop2 = cumsum(FJI_Pop_Grid_proj)) %>% 
+  filter(cumpop2<=other_urban_pop_target)
+```
+
+```{r}
+# Connected rural
+
+rural_non_stp<- non_stp %>% 
+  filter(!id %in% septic_urban$id,
+         !id %in% other_urban$id)
+
+pop_rural<-full_join(pop_df, rural_non_stp, by = c("x", "y")) %>% 
+  full_join(., urban_df, by = c("x", "y"))
+
+conn_rural_perc<-0.014 #From Fiji 2017 census/JMP - percent of urban population with septic
+#conn_rural_pop_target<-sum(pop_rural$unconnected, na.rm = T) * conn_rural_perc
+conn_rural_pop_target<-rural_pop* conn_rural_perc
+conn_rural_pop_target
+```
+
+
+
+
+```{r}
+# Septic rural
+rural_non_stp<- non_stp %>% 
+  filter(!id %in% septic_urban$id,
+         !id %in% other_urban$id)
+
+pop_rural<-full_join(pop_df, rural_non_stp, by = c("x", "y")) %>% 
+  full_join(., urban_df, by = c("x", "y"))
+
+septic_rural_perc<-0.681 #From Fiji 2017 census/JMP - percent of urban population with septic
+#septic_rural_pop_target<-sum(pop_rural$unconnected, na.rm = T) * septic_rural_perc
+septic_rural_pop_target<-rural_pop * septic_rural_perc
+septic_rural_pop_target
+
+rural_cat<-pop_rural %>% 
+  filter(!is.na(unconnected) == T,
+         is.na(FJI_Pop_Grid_proj) == F) %>% 
+  mutate(urban_bin = ifelse(Fiji_urban>0,1,0),
+         urban_bin = ifelse(is.na(urban_bin) == T, 0, as.numeric(urban_bin))) %>% 
+  dplyr::arrange(desc(unconnected)) %>% 
+  dplyr::arrange(desc(urban_bin)) %>% 
+  mutate(cumpop = cumsum(FJI_Pop_Grid_proj))
+
+septic_rural<-rural_cat %>% 
+  filter(cumpop<=septic_rural_pop_target) 
+```
+
+```{r}
+# Other rural
+
+other_rural_perc<-0.272 #From Fiji 2017 census/JMP - percent of urban population with septic
+#other_rural_pop_target<-sum(pop_rural$unconnected, na.rm = T) * other_rural_perc
+other_rural_pop_target<-rural_pop * other_rural_perc
+other_rural_pop_target
+
+other_rural<-rural_cat %>% 
+  filter(cumpop>septic_rural_pop_target) %>% 
+  mutate(cumpop2 = cumsum(unconnected)) %>% 
+  filter(cumpop2<=other_rural_pop_target)
+```
+
+Check values
+
+```{r}
+# Connected urban check
+conn_urban_check<-as.numeric(stp_ua/urban_pop_ua)
+
+# Septic Urban
+septic_urban_check<-sum(septic_urban$unconnected, na.rm = T)/urban_pop_ua #Should be ~58.9%
+septic_urban_check
+septic_urban_perc
+
+# Septic Rural
+septic_rural_check<-sum(septic_rural$unconnected,na.rm = T)/rural_pop #Should be ~68.1%
+septic_rural_check
+septic_rural_perc
+
+# Other Urban
+other_urban_check<-sum(other_urban$unconnected, na.rm = T)/urban_pop_ua #Should be ~5.4%
+other_urban_check
+other_urban_perc
+
+# Other Rural
+other_rural_check<-sum(other_rural$unconnected,na.rm = T)/rural_pop # Should be ~27.2%
+other_rural_check
+other_rural_perc
+```
+
+```{r}
+septic_pop<-sum(septic_urban$unconnected, na.rm = T) + sum(septic_rural$unconnected,na.rm = T)
+direct_pop<-sum(other_urban$unconnected, na.rm = T) + sum(other_rural$unconnected,na.rm = T)
+
+national_septic_perc<-septic_pop/fiji_pop_df #Should be ~62.8
+national_other_perc<-direct_pop/fiji_pop_df # Should be ~14.8
+national_conn_perc<-conn_pop/fiji_pop_df
+
+national_septic_perc
+national_other_perc
+national_conn_perc
+```
+
+```{r}
+total_urban<-as.numeric(stp_ua) + sum(septic_urban$unconnected, na.rm = T) + sum(other_urban$unconnected, na.rm = T)
+total_urban_perc<-total_urban/urban_pop_ua
+
+total_urban_perc
+```
+
+
+```{r}
+total_rural<-sum(septic_rural$unconnected,na.rm = T) + sum(other_rural$unconnected,na.rm = T)
+total_rural_perc<-total_rural/rural_pop
+
+total_rural_perc
+```
+
+
+```{r}
+total_national<-(conn_pop + septic_pop + direct_pop)
+total_national_perc<-(conn_pop + septic_pop + direct_pop)/fiji_pop_df #Should be ~98.4
+
+total_national_perc
+```
+
+```{r}
+check_treatment_df<-data.frame(improved = c("Sewer", "Septic", "Other", "Total"), urban = c(35.4, 58.9,5.4,99.6), rural = c(1.4, 68.1, 27.2,96.7), national = c(20.7, 62.8, 14.8,98.4))
+
+check_treatment_df <- check_treatment_df %>% 
+  mutate(urban_est = case_when(improved == "Sewer" ~ conn_urban_check*100,
+                               improved == "Septic" ~ septic_urban_check*100,
+                               improved == "Other" ~ other_urban_check*100,
+                               improved == "Total" ~ total_urban_perc*100))
+
+check_treatment_df<- check_treatment_df %>% 
+         mutate(rural_est = case_when(improved == "Sewer" ~ 0,
+                               improved == "Septic" ~ septic_rural_check*100,
+                               improved == "Other" ~ other_rural_check*100,
+                               improved == "Total" ~ total_rural_perc*100))
+
+check_treatment_df<-check_treatment_df %>% 
+         mutate(nation_est = case_when(improved == "Sewer" ~ national_conn_perc*100,
+                                improved == "Septic" ~ national_septic_perc*100,
+                                improved == "Other" ~ national_other_perc*100,
+                                improved == "Total" ~ total_national_perc*100))
+
+write.csv(check_treatment_df, here("tables/Compare_JMP_to_estimates.csv"))
+```
+
+
+```{r}
+# Join and spatilise septic
+
+septic_urban2<-septic_urban%>% 
   dplyr::select(x,y,FJI_Pop_Grid_proj)
 
-septic_sp<-st_as_sf(septic2, coords = c("x", "y"), crs = t_crs)
+septic_urban_sp<-st_as_sf(septic_urban2, coords = c("x", "y"), crs = t_crs)
 
-septic_ras<-rasterize(septic_sp, pop_ras_proj, crs = t_crs)
+septic_urban_ras<-rasterize(septic_urban_sp, pop_ras_proj, crs = t_crs)
 
-septic_ras_pop<-septic_ras[[2]]
+septic_urban_ras_pop<-septic_urban_ras[[2]]
 
-septic_pop<-cellStats(septic_ras_pop, "sum")
+septic_urban_pop<-cellStats(septic_urban_ras_pop, "sum")
+
+septic_urban_pop == sum(septic_urban$unconnected)
+```
+
+```{r}
+# Join and spatilise septic
+
+septic_rural2<-septic_rural%>% 
+  dplyr::select(x,y,FJI_Pop_Grid_proj)
+
+septic_rural_sp<-st_as_sf(septic_rural2, coords = c("x", "y"), crs = t_crs)
+
+septic_rural_ras<-rasterize(septic_rural_sp, pop_ras_proj, crs = t_crs)
+
+septic_rural_ras_pop<-septic_rural_ras[[2]]
+
+septic_rural_pop<-cellStats(septic_rural_ras_pop, "sum")
+
+septic_rural_pop == sum(septic_rural$unconnected)
+```
+```{r}
+# Join and spatilise septic
+
+other_urban2<-other_urban%>% 
+  dplyr::select(x,y,FJI_Pop_Grid_proj)
+
+other_urban_sp<-st_as_sf(other_urban2, coords = c("x", "y"), crs = t_crs)
+
+other_urban_ras<-rasterize(other_urban_sp, pop_ras_proj, crs = t_crs)
+
+other_urban_ras_pop<-other_urban_ras[[2]]
+
+other_urban_pop<-cellStats(other_urban_ras_pop, "sum")
+
+other_urban_pop == sum(other_urban$unconnected)
+```
+
+```{r}
+# Join and spatilise septic
+
+other_rural2<-other_rural%>% 
+  dplyr::select(x,y,FJI_Pop_Grid_proj)
+
+other_rural_sp<-st_as_sf(other_rural2, coords = c("x", "y"), crs = t_crs)
+
+other_rural_ras<-rasterize(other_rural_sp, pop_ras_proj, crs = t_crs)
+
+other_rural_ras_pop<-other_rural_ras[[2]]
+
+other_rural_pop<-cellStats(other_rural_ras_pop, "sum")
+
+other_rural_pop == sum(other_rural$unconnected)
+```
+
+# All septic raster
+
+```{r}
+septic_ras<-stack(septic_urban_ras_pop, septic_rural_ras_pop)
+
+septic_ras_pop<-raster::calc(septic_ras, sum,na.rm = T)
 
 writeRaster(septic_ras_pop,here("output_data/Population/Septic_population.tif"), overwrite = T)
 ```
 
 
-# Direct
+# All other raster
 
 ```{r}
-direct<-unconnected %>% 
-  filter(cumpop>pop_target) %>% 
-  dplyr::select(x,y,FJI_Pop_Grid_proj)
+other_ras<-stack(other_urban_ras_pop,  other_rural_ras_pop)
 
-direct_sp<-st_as_sf(direct, coords = c("x", "y"), crs = t_crs)
+other_ras_pop<-raster::calc(other_ras, sum,na.rm = T)
 
-direct_ras<-rasterize(direct_sp, pop_ras_proj, crs = t_crs)
-
-direct_ras_pop<-direct_ras[[2]]
-
-direct_pop<-cellStats(direct_ras_pop, "sum")
-
-writeRaster(direct_ras_pop,here("output_data/Population/Direct_population.tif"),overwrite = T)
-```
-
-# Check population
-
-```{r}
-conn_pop + septic_pop + direct_pop
+writeRaster(other_ras_pop,here("output_data/Population/Direct_population.tif"),overwrite = T)
 ```
 
 
-```{r}
-(conn_pop + septic_pop + direct_pop)/fiji_pop_df
-```
+
+
+
 
 

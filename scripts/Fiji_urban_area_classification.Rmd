@@ -1,0 +1,140 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: '2022-05-12'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(sf)
+library(raster)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Data
+
+## Tikina spatial data
+
+```{r}
+tik<-st_read(here("raw_data/Tikina/fji_polbnda_adm3_tikina.shp"))
+```
+
+## Urban areas spatial data
+
+Data source
+
+Province population and urban % from 2017 census
+Urban Area list from 2017 census
+Lat/lon, population, area largely from search on https://en.db-city.com/
+
+
+The data source : Ministry of Lands and Mineral Resources, Republic of Fiji. the year 2018. These were the names that were given in 2018 the lists as the Town Planning Scheme  and since than no scheme plans have been received by the Ministry of Lands and Mineral Resources.
+
+
+```{r}
+urban_areas<-read_csv(here("raw_data/Population/fiji_urban_areas.csv")) %>% 
+  filter(WCS == "Y") %>% 
+  mutate(Lon2 = as.numeric(Lon),
+         Lat2 = as.numeric(Lat),
+         Lat2 = ifelse(is.na(Lat2) == T, -17.5333, as.numeric(Lat2))) %>% 
+  rename(Urban_area = 'Urban Area')
+
+urban_areas<-urban_areas %>% 
+      mutate(area_ha_final = ifelse(Urban_area == "Suva", 4000, #https://unhabitat.org/sites/default/files/documents/2019-06/fiji_greater_suva_urban_profile.pdf
+                                       ifelse(Urban_area == "Lautoka", 1600, #https://unhabitat.org/sites/default/files/documents/2019-05/fiji_lautoka_urban_profile.pdf,
+                                              ifelse(Urban_area == "Nadi", 1200,
+#https://unhabitat.org/sites/default/files/documents/2019-05/fiji_nadi_urban_profile.pdf
+                                       Area_ha_WCS))))
+
+# Lami is correct at 680 ha https://unhabitat.org/sites/default/files/documents/2019-05/lamu_town_fiji_climate_change_vulnerability_assessment.pdf
+
+```
+
+```{r}
+ua_pts <- st_as_sf(x = urban_areas, 
+                        coords = c("Lon2", "Lat2"),
+                        crs = "+proj=longlat +datum=WGS84 +ellps=WGS84 +towgs84=0,0,0")
+
+ua_pts_proj<-ua_pts %>% 
+  st_transform(crs = t_crs) %>% 
+  mutate(#Area_ha = case_when(Urban_area == "Rakiraki" ~ 10000,
+         #                    TRUE ~ Area_ha), # Rakiraki area was set to 10000 even though I can't find the true area
+         area_m2 = area_ha_final * 10000,
+         radius = sqrt(area_m2/pi))
+```
+
+
+# Population layer
+
+```{r}
+pop_ras_proj<-raster(here("projected_data/Population/FJI_Pop_Grid_proj.tif"))
+```
+
+
+# Buffer points where possible to check population
+
+```{r}
+ua_pts_proj<-ua_pts_proj %>% 
+  filter(!is.na(area_m2) == T) # remove NA values to remove unincorporated townships
+
+ua_buff<-st_buffer(ua_pts_proj, dist = ua_pts_proj$radius) %>% 
+  mutate(pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
+         area_calc = st_area(.))
+
+ua_union<-st_union(ua_buff)
+
+ua_union2<-as_Spatial(ua_union)
+
+st_write(ua_union, here("output_data/Population/Urban_area_buffers.shp"), delete_layer = T)
+```
+
+```{r}
+ex<-raster::extract(pop_ras_proj, ua_union2, fun = sum, na.rm = T)
+
+total_pop<-cellStats(pop_ras_proj, stat = sum, na.rm = T)
+```
+
+
+```{r}
+ex
+total_pop
+
+ex/total_pop
+```
+Urban population from 2017 census is 489,114, our estimate is 521,724.1 -
+
+World Bank reports 57.25% urban population in Fiji in 2020 - we get 58.7%
+
+Increase each town radius to get closer to estimate
+
+```{r}
+ua_pts_proj<-ua_pts_proj %>% 
+  filter(!is.na(area_m2) == T)  %>% # remove NA values to remove unincorporated townships
+  mutate(radius2 = radius + (area_m2*0.0005)) # increase radius by 0.05% to make urban estimates closer to actual values
+
+ua_buff<-st_buffer(ua_pts_proj, dist = ua_pts_proj$radius2) %>% 
+  mutate(pop = extract(pop_ras_proj, ., fun = sum, na.rm = T),
+         area_calc = st_area(.))
+
+ua_union<-st_union(ua_buff)
+
+ua_union2<-as_Spatial(ua_union)
+
+st_write(ua_union, here("output_data/Population/Urban_area_buffers.shp"), delete_layer = T)
+```
+
+New Urban population plan
+
+1. Allocate connected population and remove
+2. Classify remaining cells as follows
+  a. Highest septic priority = within Urban Area, classifed as urban IUCN (?), highest population 
+  b. Second septic priority = within Urban Area highest population
+  c. Allocate until septic % is reached
+  d. Rest is Rural/"other"
+
+
