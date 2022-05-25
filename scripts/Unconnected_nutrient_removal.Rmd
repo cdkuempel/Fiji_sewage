@@ -51,7 +51,6 @@ e<-extent(fiji_basins12)
 crop_rivers<-st_crop(rivers_proj, e) %>% 
   dplyr::select(HYRIV_ID, MAIN_RIV, NEXT_DOWN, dis_m3_pyr)
 ```
-
 # N and P pollution
 
 Without any nutrient removal
@@ -64,14 +63,12 @@ P_cell_septic<-raster(here("output_data/Nutrients/Septic_P.tif"))
 N_cell_direct<-raster(here("output_data/Nutrients/Direct_N.tif"))
 
 P_cell_direct<-raster(here("output_data/Nutrients/Direct_P.tif"))
-
 ```
-
 
 # Create buffers
 
 ```{r}
-buff<-seq(from = 10, to = 50, by = 10) %>% as.list()
+buff<-seq(from = 5, to = 55, by = 10) %>% as.list()
 
 create_buff<-function(x){
   
@@ -87,6 +84,7 @@ writeRaster(buffer_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Rivers/buf
 
 pbmclapply(buff, create_buff, mc.cores = 5, mc.style = "ETA")
 ```
+
 ```{r}
 buff<-seq(from = 100, to = 500, by = 100) %>% as.list()
 
