@@ -59,7 +59,7 @@ nutrient_stp<-full_join(stp_df, N_df, by = "cellindex") %>%
 # Nutrient removal
 
 ```{r}
-nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+nutri_removal<-read.csv(here("output_data/Sewage_plants/Nutrient_removal_STP_allvalues.csv")) %>% 
   mutate(ID = ifelse(STP == "ACS", NA,
                      ifelse(STP == "Deuba", 1,
                             ifelse(STP == "Kinoya", 2,
