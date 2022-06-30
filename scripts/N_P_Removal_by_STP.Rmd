@@ -69,7 +69,7 @@ kinoya_N<-kinoya %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(Final_mg = Final * kinoya_flow$avg_flow_L,
          Raw_mg = Raw * kinoya_flow$avg_flow_L,
          Final_tonnes = Final_mg * 1e-9,
@@ -106,7 +106,7 @@ kinoya_P<-kinoya %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+ # filter(!Final>Raw) %>% 
   mutate(Final_mg = Final * kinoya_flow$avg_flow_L,
          Raw_mg = Raw * kinoya_flow$avg_flow_L,
          Final_tonnes = Final_mg * 1e-9,
@@ -138,8 +138,6 @@ kinoya_P_rm<-kinoya_P_year %>%
 # Ba
 
 ```{r}
-
-
 ba<-read.csv(here("raw_data/Sewage_plants/Ba_Effluent.csv"), na.string = "N/A") %>% 
   mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
          year = lubridate::year(Date), 
@@ -170,7 +168,7 @@ ba_N<-ba %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 ba_N_month<- ba_N %>% 
@@ -201,7 +199,7 @@ ba_P<-ba %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 ba_P_month<- ba_P %>% 
@@ -256,7 +254,7 @@ lautoka_N<-lautoka %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 lautoka_N_month<- lautoka_N %>% 
@@ -288,7 +286,7 @@ lautoka_P<-lautoka %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 lautoka_P_month<- lautoka_P %>% 
@@ -342,7 +340,7 @@ naboro_N<-naboro %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 naboro_N_month<- naboro_N %>% 
@@ -374,7 +372,7 @@ naboro_P<-naboro %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 naboro_P_month<- naboro_P %>% 
@@ -428,7 +426,7 @@ nadali_N<-nadali %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 nadali_N_month<- nadali_N %>% 
@@ -460,7 +458,7 @@ nadali_P<-nadali %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>%
-  filter(!Final>Raw) %>% 
+ # filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 nadali_P_month<- nadali_P %>% 
@@ -516,7 +514,7 @@ namara_N<-namara %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 namara_N_month<- namara_N %>% 
@@ -548,7 +546,7 @@ namara_P<-namara %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 namara_P_month<- namara_P %>% 
@@ -603,7 +601,7 @@ navakai_N<-navakai %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+ # filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 navakai_N_month<- navakai_N %>% 
@@ -635,7 +633,7 @@ navakai_P<-navakai %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 navakai_P_month<- navakai_P %>% 
@@ -691,7 +689,7 @@ olosara_N<-olosara %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 olosara_N_month<- olosara_N %>% 
@@ -723,7 +721,7 @@ olosara_P<-olosara %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 olosara_P_month<- olosara_P %>% 
@@ -778,7 +776,7 @@ wailada_N<-wailada %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>%
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 wailada_N_month<- wailada_N %>% 
@@ -810,7 +808,7 @@ wailada_P<-wailada %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+ # filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 wailada_P_month<- wailada_P %>% 
@@ -865,7 +863,7 @@ deuba_N<-deuba %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 deuba_N_month<- deuba_N %>% 
@@ -897,7 +895,7 @@ deuba_P<-deuba %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 deuba_P_month<- deuba_P %>% 
@@ -953,7 +951,7 @@ acs_N<-acs %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+ # filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 acs_N_month<- acs_N %>% 
@@ -985,7 +983,7 @@ acs_P<-acs %>%
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  filter(!Final>Raw) %>% 
+  #filter(!Final>Raw) %>% 
   mutate(rm_eff = (Raw-Final)/Raw)
 
 acs_P_month<- acs_P %>% 
@@ -1069,5 +1067,5 @@ all_year2<-all_year %>%
 ```
 
 ```{r}
-write.csv(all, here("output_data/Sewage_plants/Nutrient_removal_STP.csv"))
+write.csv(all, here("output_data/Sewage_plants/Nutrient_removal_STP_allvalues.csv"))
 ```
