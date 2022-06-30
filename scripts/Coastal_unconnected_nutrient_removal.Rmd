@@ -73,7 +73,8 @@ Another option?
 https://gis.stackexchange.com/questions/327788/addressing-just-the-outermost-cells-in-a-raster
 
 ```{r}
-buff<-seq(from = -10, to = -50, by = -10) %>% as.list()
+#buff<-seq(from = -10, to = -50, by = -10) %>% as.list()
+buff<-seq(from = -5, to = -55, by = -10) %>% as.list()
 
 create_buff<-function(x){
 
@@ -96,8 +97,6 @@ st_write(diff, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffe
 writeRaster(diff_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".tif"), overwrite = T)
 
 }
-
-
 ```
 
 ```{r}
