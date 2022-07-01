@@ -174,11 +174,16 @@ data_per_river2<-cbind(basin_rivers, pnts_xy) %>%
 Now we assume only nutrients within 50 meters of rivers gets into surface waters
 
 Read in data
+
+***********CHOOSE BUFFER DISTANCE HERE********
+
+Jacquie and Nabeela recommend 25 m - however we choose 35 meters due to the spatial resolution of the raster (30 meters)
+
 ```{r}
-septic_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_septic_per_basin_50_buff.csv")) %>% 
+septic_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_septic_per_basin_35_buff.csv")) %>% 
   dplyr::select(-X)
   
-direct_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_50_buff.csv")) %>% 
+direct_basins_nutri<-read.csv(here("output_data/Nutrients/buffers/N_P_direct_per_basin_35_buff.csv")) %>% 
   dplyr::select(-X)
 ```
 
@@ -197,6 +202,7 @@ direct_basins_nutri_all<-left_join(data_per_river2, direct_basins_nutri, by = c(
 
 ```
 
+*********SET REMOVAL RATES HERE*******
 ```{r}
 septic_basins_nutri_dist<-septic_basins_nutri_all %>% 
   group_by(MAIN_BAS) %>% 
@@ -205,10 +211,8 @@ septic_basins_nutri_dist<-septic_basins_nutri_all %>%
   mutate(prop_dis = riv_dis/Total_discharge,
          N_pourpoint = prop_dis * N,
          P_pourpoint = prop_dis * P,
-         N_treat = N_pourpoint*0.8, #20% lost from septic/soil treatment
-         P_treat = P_pourpoint * 0.8,
-         N_treat_leach = N_treat * 0.9,
-         P_treat_leach = P_treat * 0.9) # 10% lost from sandy soil - leaching rate is from Jacks et al. 1999 (1-50% of nitrates leached to groundwater) and Tanner and Gold 2004
+         N_treat_leach = N_pourpoint*0.8, #20% lost from septic/soil 
+         P_treat_leach = P_pourpoint * 0.7) # 10% lost from sandy soil - leaching rate is from Jacks et al. 1999 (1-50% of nitrates leached to groundwater) and Tanner and Gold 2004
 
 direct_basins_nutri_dist<-direct_basins_nutri_all %>% 
   group_by(MAIN_BAS) %>% 
@@ -217,10 +221,10 @@ direct_basins_nutri_dist<-direct_basins_nutri_all %>%
   mutate(prop_dis = riv_dis/Total_discharge,
          N_pourpoint = prop_dis * N,
          P_pourpoint = prop_dis * P,
-         N_treat = N_pourpoint, #0% removal from treatment
-         P_treat = P_pourpoint,
-         N_treat_leach = N_pourpoint * 0.9,
-         P_treat_leach = P_pourpoint * 0.9) # 10% removal from sandy soils - Leaching rate is from Jacks et al. 1999 Try to find values specifically for phosphorous? and Tanner and Gold 2004
+       #  N_treat = N_pourpoint, #0% removal from treatment
+      #   P_treat = P_pourpoint,
+         N_treat_leach = N_pourpoint * 0.2, #80% removal
+         P_treat_leach = P_pourpoint * 0.01) #99% removal
 ```
 
 
@@ -245,7 +249,7 @@ pour_points<-septic_basins_nutri_dist
 coordinates(pour_points) <- ~pp_x+pp_y
 pour_points<-st_as_sf(pour_points)
 pour_points<-pour_points %>% 
-  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint,N_treat, P_treat, N_treat_leach, P_treat_leach) %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint, N_treat_leach, P_treat_leach) %>% 
   rename(N = N_pourpoint,
          P = P_pourpoint) %>% 
   filter(!is.na(N) == T)
@@ -266,7 +270,7 @@ pour_points_direct<-direct_basins_nutri_dist
 coordinates(pour_points_direct) <- ~pp_x+pp_y
 pour_points_direct<-st_as_sf(pour_points_direct)
 pour_points_direct<-pour_points_direct %>% 
-  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint, N_treat, P_treat, N_treat_leach, P_treat_leach) %>% 
+  dplyr::select(HYRIV_ID, MAIN_BAS, N_pourpoint, P_pourpoint, N_treat_leach, P_treat_leach) %>% 
   rename(N = N_pourpoint,
          P = P_pourpoint) %>% 
   filter(!is.na(N) == T)
