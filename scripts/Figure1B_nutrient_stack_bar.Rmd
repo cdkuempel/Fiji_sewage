@@ -16,13 +16,14 @@ library(here)
 ```
 
 ```{r}
-nutri<-read.csv(here("output_data/Results/Nutrient_results.csv"))
+nutri<-read.csv(here("output_data/Results/Nutrient_results.csv")) %>% 
+  mutate(Type = ifelse(Type == "Direct", "Other", Type))
 ```
 
 ```{r}
 nutri2<- nutri %>% 
   mutate(type2 = ifelse(Type == "Coastal_septic", "Septic",
-         ifelse(Type == "Coastal_direct", "Direct",
+         ifelse(Type == "Coastal_direct", "Other",
                 ifelse(Type == "Tourism_primary", "Tourism",
                        ifelse(Type == "Tourism_secondary", "Tourism",
                               ifelse(Type == "Tourism_septic", "Tourism", as.character(Type)))))))
@@ -57,6 +58,7 @@ tonnes_bar<-ggplot(nutri_dat, aes(x = Nutrient, y = Effluent, fill = type2)) +
   geom_bar(position = "stack", stat = "identity") +
   theme_minimal() +
   theme(legend.position="none") +
+  ylab("Nutrient load") +
   scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4")) #+
 #  labs(fill = "Source")
 
@@ -68,6 +70,7 @@ prop_bar<-ggplot(nutri_dat, aes(x = Nutrient, y = prop, fill = type2)) +
   geom_bar(position = "stack", stat = "identity") +
   theme_minimal() +
   scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4"))+
+  ylab("Proportion") +
   labs(fill = "Source")
 
 prop_bar

@@ -36,7 +36,4 @@ write.csv(visit_supp_table, here("tables/Supp_visitors_by_region.csv"))
 ```
 
 
-```{r}
-
-```
 

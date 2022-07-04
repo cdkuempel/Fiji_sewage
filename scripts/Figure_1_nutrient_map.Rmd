@@ -89,7 +89,7 @@ direct_nutri<-tm_shape(direct_nutri_basin2) +
     tm_polygons(col = "total_N_tonnes",
                 style = "cont",
                 title = "Nitrogen\n(tonnes)") +
-  tm_layout(title = "Direct") 
+  tm_layout(title = "Other") 
 
 direct_nutri
 ```
@@ -100,6 +100,8 @@ direct_nutri
 connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp")) %>% 
   mutate(N_tonnes = N_final*0.001)
 ```
+
+
 ```{r}
 basins_diss<-fiji_basins %>% 
   mutate(ID = as.numeric(1)) %>% 

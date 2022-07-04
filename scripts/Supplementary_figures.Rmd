@@ -82,8 +82,8 @@ wwtp_compare2<-full_join(actual, estimated)
 ggplot(wwtp_compare2, aes(x = Estimated, y = Actual, col = STP.x)) +
   geom_point(size = 2) +
   facet_wrap(~type, scales = "free") +
-  ylab("Estimated effluent (tonnes)") +
-  xlab("Reported effluent (tonnes)") +
+  ylab("Estimated (tonnes)") +
+  xlab("Reported (tonnes)") +
   stat_smooth(method = "lm", col = "black", linetype = "dashed") +
   theme_bw() +
   labs(colour="Wastewater\ntreatment plant")
@@ -112,7 +112,7 @@ leach2 of 0.1 means that 90% of nutrients leaches (10% lost)
 
 ```{r}
 septic_treat_leach<-n_septic_sens %>% 
-  filter(buffer == 50) %>% 
+  filter(buffer == 35) %>% 
    mutate(leach2 = 1-leach_rate,
      z = ifelse(treatment_rate == 0.2 & leach2 == 0.1, TRUE, FALSE))
 ```
@@ -154,7 +154,7 @@ p_septic_heatmap
 
 ```{r}
 direct_treat_leach<-n_direct_sens %>% 
-  filter(buffer == 50) %>% 
+  filter(buffer == 35) %>% 
    mutate(leach2 = 1-leach_rate,
      z = ifelse(treatment_rate == 0 & leach2 == 0.1, TRUE, FALSE))
 ```
@@ -167,7 +167,7 @@ n_direct_heatmap <- ggplot(data = direct_treat_leach, mapping = aes(x = as.facto
   xlab(label = "") + 
   ylab(label = "Leaching\n(% nutrient loss)") + 
   theme_bw() + 
-  labs(fill="Nitrogen", title = "Direct") + 
+  labs(fill="Nitrogen", title = "Other") + 
   scale_fill_viridis(discrete=FALSE, direction=-1) +
   theme(plot.title = element_text(hjust = 0.5))
   
@@ -184,7 +184,7 @@ p_direct_heatmap <- ggplot(data = direct_treat_leach, mapping = aes(x = as.facto
   xlab(label = "Treatment\n(%nutrient loss)") + 
   ylab(label = "Leaching\n(% nutrient loss)") + 
   theme_bw() + 
-  labs(fill="Phosphorus", title = "Direct") + 
+  labs(fill="Phosphorus", title = "Other") + 
   scale_fill_viridis(discrete=FALSE, direction=-1) +
   theme(plot.title = element_text(hjust = 0.5))
   
@@ -221,7 +221,7 @@ direct_buffer_dat<-n_direct_sens %>%
   distinct(.) %>% 
   pivot_longer(., col = c("N_leach", "P_leach"), names_to = "Nutrients") %>% 
   mutate(value = value * 0.001,
-         type = "Direct") %>% 
+         type = "Other") %>% 
   filter(leach_rate == 0.1) %>% 
   mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", "P"))
 
@@ -247,23 +247,23 @@ buffer_sens
 septic_leach_dat<-n_septic_sens %>% 
   filter(treatment_rate == 0.2) %>% 
   dplyr::select(buffer, leach_rate, N_leach, P_leach) %>% 
-  mutate(leach2 = 1-leach_rate) %>% 
+  #mutate(leach2 = 1-leach_rate) %>% 
   distinct(.) %>% 
   pivot_longer(., col = c("N_leach", "P_leach"), names_to = "Nutrients") %>% 
   mutate(value = value * 0.001,
          type = "Septic") %>% 
-  filter(buffer == 50) %>% 
+  filter(buffer == 35) %>% 
   mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", "P"))
 
 direct_leach_dat<-n_direct_sens %>% 
   filter(treatment_rate == 0) %>% 
   dplyr::select(buffer, leach_rate, N_leach, P_leach) %>% 
-  mutate(leach2 = 1-leach_rate) %>% 
+  #mutate(leach2 = 1-leach_rate) %>% 
   distinct(.) %>% 
   pivot_longer(., col = c("N_leach", "P_leach"), names_to = "Nutrients") %>% 
   mutate(value = value * 0.001,
-         type = "Direct") %>% 
-  filter(buffer == 50) %>% 
+         type = "Other") %>% 
+  filter(buffer == 35) %>% 
   mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", "P"))
 
 leach_dat<-rbind(septic_leach_dat, direct_leach_dat)
@@ -272,7 +272,7 @@ leach_dat<-rbind(septic_leach_dat, direct_leach_dat)
 
 
 ```{r}
-leach_sens<-ggplot(leach_dat, aes(x = leach2, y = value, col = Nutrients)) +
+leach_sens<-ggplot(leach_dat, aes(x = leach_rate, y = value, col = Nutrients)) +
   geom_point() +
   facet_wrap(~type) +
   theme_bw() +
@@ -287,7 +287,7 @@ leach_sens
 ```{r}
 septic_treat_dat<-n_septic_sens %>% 
   filter(leach_rate == 0.9) %>% 
-    mutate(leach2 = 1-leach_rate) %>% 
+   # mutate(leach2 = 1-leach_rate) %>% 
   dplyr::select(buffer, treatment_rate, N_leach, P_leach) %>% 
   distinct(.) %>% 
   pivot_longer(., col = c("N_leach", "P_leach"), names_to = "Nutrients") %>% 
@@ -298,12 +298,12 @@ septic_treat_dat<-n_septic_sens %>%
 
 direct_treat_dat<-n_direct_sens %>% 
   filter(leach_rate == 0.9) %>% 
-  mutate(leach2 = 1-leach_rate) %>% 
+ # mutate(leach2 = 1-leach_rate) %>% 
   dplyr::select(buffer, treatment_rate, N_leach, P_leach) %>% 
   distinct(.) %>% 
   pivot_longer(., col = c("N_leach", "P_leach"), names_to = "Nutrients") %>% 
   mutate(value = value * 0.001,
-         type = "Direct") %>% 
+         type = "Other") %>% 
   filter(buffer == 50) %>% 
   mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", "P"))
 
