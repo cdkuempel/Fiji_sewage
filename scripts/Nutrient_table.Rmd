@@ -341,18 +341,16 @@ river_max<-river_buff %>%
 Max direct
 ```{r}
 direct_coast_max<-direct_coastal_buff %>% 
-  filter(treatment_rate == 0.2,
-         leach_rate == 1.0,
+  filter(leach_rate == 1.0,
          buffer == 500)
 
 direct_river_max<-direct_river_buff %>% 
-  filter(treatment_rate == 0.2,
-         leach_rate == 1.0,
+  filter(leach_rate == 1.0,
          buffer == 500)
 
-(unique(direct_coast_max$N_leach) + unique(direct_river_max$N_leach))*0.001
+(unique(direct_coast_max$N) + unique(direct_river_max$N))*0.001
 
-(unique(direct_coast_max$P_leach) + unique(direct_river_max$P_leach))*0.001
+(unique(direct_coast_max$P) + unique(direct_river_max$P))*0.001
 ```
 
 
