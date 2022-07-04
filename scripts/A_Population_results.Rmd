@@ -51,11 +51,12 @@ Difference from Fiji's population estimates
 ```
 
 
-In 2007, the STP serviced ~194,700 people (23% of population) - Fiji National Wastewater Plan
 ```{r}
-(conn_pop-194700)/194700
-(prop_pop-0.23)/0.23
+model_est<-read.csv(here("tables/Compare_JMP_to_estimates.csv"))
+
+model_est
 ```
+
 
 
 ```{r}
