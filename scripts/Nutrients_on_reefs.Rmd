@@ -1,7 +1,7 @@
 ---
 title: "Untitled"
 author: "Caitie"
-date: "22/02/2022"
+date: '2022-07-18'
 output: html_document
 ---
 
@@ -9,80 +9,69 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Load packages
-
 ```{r}
+library(tidyverse)
 library(sf)
-library(gdalUtils)
-library(here)
 library(raster)
-library(fasterize)
+library(here)
+library(tabularaster)
+devtools::install_github("isciences/exactextractr")
 library(exactextractr)
+library(tmap)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
 
-# Load Allen Coral Atlas data from prep
+
+# Load data
+
+## Coral reefs
 
 ```{r}
-reef<-st_read(here("projected_data/Allen_Coral_Atlas/coral_algae_proj.shp"))
-
-reef<-st_transform(reef, t_crs)
+reefs<-st_read(here("projected_data/Allen_Coral_Atlas/coral_algae_proj.shp"))
 ```
 
 
-# Load diffusion model results
+## Plumes
+
+These currently don't have the wave/current information added, just decay function
 
 ```{r}
-diff<-raster(here("output_data/diffusion_results/04_wavesed_Feb2022.tiff"))
+plume_files<-list.files(here("output_data/Plumes"), full.names = T)
 
-diff<-projectRaster(diff,  crs = t_crs)
+r1<-raster(plume_files[1])
+
+r1p<-projectRaster(r1, crs = t_crs)
+r2p<-projectRaster(r2, crs = t_crs)
+r3p<-projectRaster(r3, crs = t_crs)
+
+all_rp<-merge(r1p,r2p,r3p)
+
+merge_rasters(
+  plume_files,
+  output_raster = here("output_data/Plumes/Merged_plumes.tif"),
+  options = character(0),
+  overwrite = FALSE,
+  force_fallback = FALSE
+)
+
+r<-raster(here("output_data/Plumes/Merged_plumes.tif"))
+rp<-projectRaster(r, crs = t_crs)
 ```
 
-
-# Calculate nutrients per reef pixel/polygon
-
-## Raster
-
-Create reef raster
+# Intersect coral reefs with plumes and calculates the amount of nutrients
 
 ```{r}
-reef_ras<-fasterize(reef, diff)
+  n_reefs<-exactextractr::exact_extract(rp, reefs, fun = "sum")
+  n_df<-as.data.frame(n_reefs)
+  done<-cbind(reefs, n_df)
+
+st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.shp"), delete_layer = TRUE)
 ```
-
-Multiply diffusion by reef raster to get nutrients in each reef pixel
-
 ```{r}
-reef_diff<-reef_ras*diff
+tmap_mode("view")
+tm_shape(done) +
+    tm_polygons("n_reefs")
 ```
-
-```{r}
-writeRaster(reef_diff, here("output_data/Nutrients_at_reefs/Nutrients_at_reefs.tif"))
-```
-
-
-## Polygon
-
-This takes forever so make sure we want it before doing it.... easier as a raster
-
-```{r}
-reef_diff_mean<-reef %>% 
-  mutate(N = exact_extract(diff, ., 'mean'))
-
-st_write(reef_diff_mean, here("output_data/Nutrients_at_reefs/Nutrients_at_reefs_mean.shp"))
-
-test<-reef_diff_mean %>% 
-  filter(!is.nan(N) == T)
-
-reef_diff_sum<-reef %>% 
-  mutate(N = exact_extract(diff, ., 'sum'))
-
-st_write(reef_diff_sum, here("output_data/Nutrients_at_reefs/Nutrients_at_reefs_sum.shp"))
-
-test2<-reef_diff_sum %>% 
-  filter(!is.nan(N) == T,
-         N>0)
-```
-
 
 
