@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
 library(patchwork)
 library(here)
+library(viridis)
 ```
 
 ```{r}
@@ -59,7 +60,8 @@ tonnes_bar<-ggplot(nutri_dat, aes(x = Nutrient, y = Effluent, fill = type2)) +
   theme_minimal() +
   theme(legend.position="none") +
   ylab("Nutrient load") +
-  scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4")) #+
+  scale_fill_viridis_d()
+  #scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4")) #+
 #  labs(fill = "Source")
 
 tonnes_bar
@@ -69,7 +71,8 @@ tonnes_bar
 prop_bar<-ggplot(nutri_dat, aes(x = Nutrient, y = prop, fill = type2)) +
   geom_bar(position = "stack", stat = "identity") +
   theme_minimal() +
-  scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4"))+
+  scale_fill_viridis_d() +
+  #scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4"))+
   ylab("Proportion") +
   labs(fill = "Source")
 
@@ -84,3 +87,44 @@ tonnes_bar + prop_bar
 ggsave(here("figures/Treatment_nutrients_bar_chart.png"), width = 10, height = 5, dpi = 300)
 ```
 
+```{r}
+nutri_dat2<-nutri_dat %>% 
+  filter(!type2 == "Tourism")
+
+tonnes_bar2<-ggplot(nutri_dat2, aes(x = Nutrient, y = Effluent, fill = type2)) +
+  geom_bar(position = "stack", stat = "identity") +
+  theme_minimal() +
+  theme(legend.position="none") +
+  ylab("Nutrient load") +
+  scale_fill_viridis_d()
+  #scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4")) #+
+#  labs(fill = "Source")
+
+tonnes_bar2
+```
+
+```{r}
+
+total_N2<-N_dat %>% 
+  filter(!type2 == "Tourism") 
+
+total_P2 = P_dat %>% 
+  filter(!type2 == "Tourism") 
+
+total_N3<-sum(total_N2$Effluent)
+
+total_P3<-sum(total_P2$Effluent)
+
+nutri_dat2 <- nutri_dat2 %>% 
+  mutate(prop2 = ifelse(Nutrient == "N", Effluent/total_N3, Effluent/total_P3))
+
+prop_bar2<-ggplot(nutri_dat2, aes(x = Nutrient, y = prop2, fill = type2)) +
+  geom_bar(position = "stack", stat = "identity") +
+  theme_minimal() +
+  scale_fill_viridis_d() +
+  #scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4"))+
+  ylab("Proportion") +
+  labs(fill = "Source")
+
+prop_bar2
+```
