@@ -1,0 +1,122 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(sf)
+library(raster)
+library(here)
+```
+
+# Read in connected population nutrients
+
+```{r}
+N_cell_conn<-raster(here("output_data/Nutrients/Connected_N.tif"))
+```
+
+
+# Buffer zone
+
+```{r}
+buffer_list<-list.files(path = here("output_data//Rivers/buffers"), pattern = "buffer_rivers_", full.names = T)
+coast_buffer_list<-list.files(path = here("output_data/Coast/buffers"), pattern = ".tif$", full.names = T)
+
+buffer<-raster(buffer_list[[11]])
+buffer[is.na(buffer) == T]<-0
+coast<-raster(coast_buffer_list[[6]])
+coast[is.na(coast) == T]<-0
+
+all_buff<-buffer+coast
+
+all_buff[all_buff>0]<-1
+all_buff[all_buff<1]<-0
+all_buff[is.na(all_buff) == T]<-0
+
+buffer500<-raster(buffer_list[[19]])
+buffer500[is.na(buffer500) == T]<-0
+coast500<-raster(coast_buffer_list[[10]])
+coast500[is.na(coast500) == T]<-0
+
+all_buff500<-buffer500+coast500
+
+all_buff500[all_buff500>0]<-1
+all_buff500[all_buff500<1]<-0
+all_buff500[is.na(all_buff500) == T]<-0
+```
+
+# Get connected buffer values
+
+For 35 meter buffer
+```{r}
+conn_buff<-N_cell_conn * all_buff
+
+conn35_total<-cellStats(conn_buff, "sum")
+```
+For 500 meter buffer
+
+```{r}
+conn_buff500<-N_cell_conn * all_buff500
+
+conn500_total<-cellStats(conn_buff500, "sum")
+```
+
+# Apply nutrient removal/leaching
+
+20% lost through treatment/soil for septic
+
+```{r}
+(conn35_total*0.8)*0.001
+(conn500_total*0.8)*0.001
+```
+
+Look at just Kinoya
+```{r}
+stp_ID_ras<-raster(here("output_data/Sewage_plants/STP_ID_raster.tif"))
+kinoya<-stp_ID_ras
+kinoya[kinoya<2]<-0
+kinoya[kinoya>2]<-0
+kinoya[kinoya==2]<-1
+```
+
+```{r}
+kinoya_N<-N_cell_conn * kinoya
+kinoy_N_buff35<-kinoya_N * all_buff
+kinoy_N_buff500<-kinoya_N * all_buff500
+```
+
+```{r}
+(cellStats(kinoy_N_buff35, "sum")*0.8)*0.001
+(cellStats(kinoy_N_buff500, "sum")*0.8)*0.001
+```
+
+# Compare with connected results
+
+```{r}
+conn_pp<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp"))
+```
+# Nutrient removal values
+
+```{r}
+nutri_removal<-read.csv(here("output_data/Sewage_plants/Nutrient_removal_STP_allvalues.csv"))
+```
+
+```{r}
+kinoya_nutri_rm<-1-0.42221087
+kinoya_improved<-1-0.42221087- 0.1
+```
+
+```{r}
+sum_kin_N<-cellStats(kinoya_N, "sum")
+sum_kin_N*kinoya_nutri_rm*0.001
+sum_kin_N*kinoya_improved*0.001
+sum_kin_N*0.10*0.001
+
+```
+
