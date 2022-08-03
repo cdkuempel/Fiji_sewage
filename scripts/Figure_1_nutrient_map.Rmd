@@ -32,6 +32,24 @@ fiji_basins<-st_transform(fiji_basins12, t_crs) %>%
   group_by(MAIN_BAS) %>% 
   summarise(total_area = sum(area_km2, na.rm = T))
 ```
+```{r}
+test<-st_read(here("raw_data/Tikina/fji_polbnda_adm3_tikina.shp")) %>% 
+  st_transform(., t_crs) 
+
+test2<-st_intersection(test, fiji_basins) 
+
+test3<-test2%>% 
+  mutate(div_basin_area = as.numeric(st_area(.))) %>% 
+  group_by(ADM1_NAME, MAIN_BAS) %>% 
+  summarise(div_basin_area = sum(div_basin_area,na.rm = T)) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+fiji_basin_div<-full_join(fiji_basins, test3, by = "MAIN_BAS") %>% 
+  mutate(prop = (div_basin_area*1e-6)/total_area) %>% 
+  group_by(MAIN_BAS) %>% 
+    filter(prop == max(prop))
+```
 
 # Unconnected
 
@@ -78,7 +96,8 @@ direct_nutri_basin2<-direct_nutri_basin %>%
 septic_nutri<-tm_shape(septic_nutri_basin2) +
     tm_polygons(col = "total_N_tonnes",
                 style = "cont",
-                title = "Nitrogen\n(tonnes)") +
+                title = "Nitrogen\n(tonnes)",
+                palette = "-viridis") +
   tm_layout(title = "Septic") 
 
 septic_nutri
@@ -88,7 +107,8 @@ septic_nutri
 direct_nutri<-tm_shape(direct_nutri_basin2) +
     tm_polygons(col = "total_N_tonnes",
                 style = "cont",
-                title = "Nitrogen\n(tonnes)") +
+                title = "Nitrogen\n(tonnes)",
+                palette = "-viridis") +
   tm_layout(title = "Other") 
 
 direct_nutri
@@ -98,7 +118,8 @@ direct_nutri
 
 ```{r}
 connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp")) %>% 
-  mutate(N_tonnes = N_final*0.001)
+  mutate(N_tonnes = N_final*0.001) %>% 
+  arrange(N_tonnes)
 ```
 
 
@@ -120,7 +141,8 @@ connected_nutri_plot<-tm_shape(basins_diss) +
              border.col = "black", 
              border.lwd = 2, 
              title.shape = "Nitrogen\n(tonnes)", 
-             title.col = "Nitrogen\n(tonnes)") +
+             title.col = "Nitrogen\n(tonnes)",
+             palette = "-viridis") +
   tm_layout(title = "Connected") #+
   #tm_text("label", size = 1, auto.placement = 1.5, col = "darkblue")
 
@@ -143,20 +165,90 @@ basin_tourism<-full_join(fiji_basins, tourist, by = "MAIN_BAS")
 tourism_nutri<-tm_shape(basin_tourism) +
     tm_polygons(col = "total_N_tonnes",
                 style = "cont",
-                title = "Nitrogen\n(tonnes)") +
+                title = "Nitrogen\n(tonnes)",
+                palette = "-viridis") +
   tm_layout(title = "Tourism") 
 
 tourism_nutri
 ```
+```{r}
+tmap_save(tourism_nutri, here("figures/Nutrient_tourism_treatment_map.png"), dpi = 300, width = 10, height = 5)
+```
+
 # All together
 
 ```{r}
-nutri_final<-tmap_arrange(direct_nutri, septic_nutri, connected_nutri_plot, tourism_nutri, nrow = 1)
+nutri_final<-tmap_arrange(direct_nutri, septic_nutri, connected_nutri_plot, nrow = 1)
 
 nutri_final
 ```
 
 ```{r}
-tmap_save(nutri_final, here("figures/Nutrient_treatment_map.png"), dpi = 300, width = 10, height = 5)
+tmap_save(nutri_final, here("figures/Nutrient_residential_treatment_map.png"), dpi = 300, width = 10, height = 5)
+```
+
+
+```{r}
+nutri_final_all<-tmap_arrange(direct_nutri, septic_nutri, connected_nutri_plot, tourism_nutri, nrow = 1)
+
+nutri_final_all
+```
+
+```{r}
+tmap_save(nutri_final_all, here("figures/Nutrient_all_treatment_map.png"), dpi = 300, width = 10, height = 5)
+```
+
+```{r}
+basin_tourism_df<-basin_tourism %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  pivot_longer(., cols = c("total_N_tonnes","total_P_tonnes"), values_to= "Effluent", names_to = "Nutrient") %>% 
+  mutate(type = "tourism")
+
+septic_nutri_df<- septic_nutri_basin2 %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  pivot_longer(., cols = c("total_N_tonnes","total_P_tonnes"), values_to= "Effluent", names_to = "Nutrient") %>% 
+  mutate(type = "septic")
+
+direct_nutri_df<-direct_nutri_basin2 %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  pivot_longer(., cols = c("total_N_tonnes","total_P_tonnes"), values_to= "Effluent", names_to = "Nutrient") %>% 
+  mutate(type = "direct")
+
+sept_direct_tourism<-rbind(septic_nutri_df, direct_nutri_df, basin_tourism_df) %>% 
+  dplyr::select(-total_area)
+```
+
+```{r}
+fiji_basin_proj<-fiji_basins12 %>% 
+  st_transform(., t_crs) %>% 
+  dplyr::select(MAIN_BAS)
+
+fiji_basin_df<-fiji_basin_proj %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+conn_dist<-st_nn(connected, fiji_basin_proj, k = 1, parallel = 10) %>% 
+   unlist() 
+
+bas_id<-fiji_basin_df[conn_dist,] %>% 
+  as.data.frame() %>% 
+  rename(MAIN_BAS = ".")
+
+conn_basin2<-cbind(connected, bas_id) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  dplyr::select(N_final, P_final, MAIN_BAS) %>% 
+  mutate(total_N_tonnes = N_final *0.001,
+         total_P_tonnes = P_final * 0.001) %>% 
+  dplyr::select(-N_final, -P_final) %>% 
+  pivot_longer(., cols = c("total_N_tonnes","total_P_tonnes"), values_to= "Effluent", names_to = "Nutrient") %>% 
+  mutate(type = "connected")
+
+all<-rbind(conn_basin2, sept_direct_tourism)
+
+write.csv(all, here("output_data/Results/Nutrient_results_by_basin.csv"))
 ```
 
