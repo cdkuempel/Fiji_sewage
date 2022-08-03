@@ -62,6 +62,12 @@ total_n_tonnes
 total_p_tonnes
 ```
 
+```{r}
+(conn_n_sum*0.001)/total_n_tonnes
+(septic_n_sum*0.001)/total_n_tonnes
+(direct_n_sum*0.001)/total_n_tonnes
+```
+
 
 ## Connected
 
@@ -71,6 +77,10 @@ nutri_rm_connected<-st_read(here("output_data/Sewage_plants/Nutrients_at_STP.shp
 
 The below values are in kg/year
 ```{r}
+# WWTP
+# Total N and P emissions before treatment
+conn_n_sum*0.001
+conn_p_sum*0.001
 
 # Total N and P human emissions after treatment
 connected_n_rm<-sum(nutri_rm_connected$N_final) * 0.001
@@ -80,10 +90,6 @@ connected_n_rm
 connected_p_rm
 ```
 
-```{r}
-conn_n_sum*0.001
-conn_p_sum*0.001
-```
 
 
 ```{r}
@@ -250,6 +256,12 @@ total_p_surface
 (coastal_septic_p_pp+coastal_direct_p_pp)/(total_septic_p+total_direct_p)
 ```
 
+
+```{r}
+(conn_treat_n*0.001)/total_n_surface
+(total_septic_n)/total_n_surface
+(total_direct_n)/total_n_surface
+```
 # Tourism
 
 
