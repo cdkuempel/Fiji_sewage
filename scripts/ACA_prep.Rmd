@@ -23,15 +23,24 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 ```{r}
 reef<-st_read("/home/kuempel/Fiji_sewage/raw_data/Allen_Coral_Atlas/benthic.shp")
 
+reef_proj<-reef %>% 
+  st_transform(., t_crs)
+
+gdalwarp(srcfile = "/home/kuempel/Fiji_sewage/raw_data/Allen_Coral_Atlas/benthic.shp",
+         dstfile = "/home/kuempel/Fiji_sewage/projected_data/Allen_Coral_Atlas/benthic_proj.shp",
+         t_srs = t_crs)
+
 sub_reef<-reef %>% 
   filter(class == "Coral/Algae")
 
-st_write(sub_reef, "/home/kuempel/Fiji_sewage/raw_data/Allen_Coral_Atlas/coral_algae.shp")
+st_write(sub_reef, "/home/kuempel/Fiji_sewage/raw_data/Allen_Coral_Atlas/coral_algae.shp", delete_layer = T)
 
 sub_reef<-st_read("/home/kuempel/Fiji_sewage/raw_data/Allen_Coral_Atlas/coral_algae.shp")
 
+sub_reef<-st_make_valid(sub_reef)
+
 reef_proj<-st_transform(sub_reef, t_crs)
 
-st_write(reef_proj,here("projected_data/Allen_Coral_Atlas/coral_algae_proj.shp"))
+st_write(reef_proj,here("projected_data/Allen_Coral_Atlas/coral_algae_proj.shp"), delete_layer = T)
 ```
 
