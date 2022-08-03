@@ -1,0 +1,169 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-07-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(nngeo)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+# Coral reef results
+
+```{r}
+reef_nutri<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.shp")) %>% 
+  st_transform(., t_crs)
+```
+
+
+
+```{r}
+sub_reef_nutri<-reef_nutri %>% 
+   filter(n_reefs>0) %>% 
+   mutate(n_reefs_tonnes = n_reefs*0.001)
+
+sub_reef_nutri<- sub_reef_nutri %>% 
+   arrange(desc(n_reefs_tonnes)) %>% 
+   mutate(cumsum_n = cumsum(n_reefs_tonnes),
+          prop = cumsum_n/sum(sub_reef_nutri$n_reefs_tonnes, na.rm = T))
+ 
+ top_90<-sub_reef_nutri %>% 
+   filter(prop <=0.9)
+ 
+ nrow(top_90)
+ 
+ reef_nutri_df<-sub_reef_nutri %>% 
+   as.data.frame() %>% 
+   dplyr::select(-geometry)
+```
+
+```{r}
+sum(reef_nutri_df$n_reefs_tonnes,na.rm = T)
+sum(reef_nutri_df$n_reefs_tonnes,na.rm = T)/385.9
+```
+
+```{r}
+nrow(sub_reef_nutri)/nrow(reef_nutri)
+```
+
+```{r}
+nrow(top_90)/nrow(sub_reef_nutri)
+```
+
+# Fiji Tikinas
+
+```{r}
+tik<-st_read(here("projected_data/Tikina/Fiji_tikina.shp")) %>% 
+   st_transform(., t_crs)
+
+tik_df<-tik %>% 
+  as.data.frame() %>% 
+  dplyr::select(TIKINA, ADM1_NAME)
+```
+
+
+
+# Nearest Tikina to each coral reef
+
+```{r}
+test<-sub_reef_nutri %>% 
+  mutate(area_m2 = as.numeric(st_area(.)))
+
+cent<-st_centroid(test)
+
+st_write(cent,here("output_data/Nutrients_at_reefs/Reef_nutrient_centroids.shp"), delete_layer = TRUE)
+
+reef_tik_dist<-st_nn(cent, tik, k = 1, parallel = 10, returnDist = T) %>% 
+   unlist() %>% 
+   as.data.frame()
+
+reef_tik_dist2<-reef_tik_dist %>% 
+  tibble::rownames_to_column(., "Type")
+
+pos<-reef_tik_dist2 %>% 
+  filter(str_detect(Type, "nn")) %>% 
+   rename(tik_val = ".")
+
+test2<-tik_df[pos$tik_val,] %>% 
+   as.data.frame() 
+
+dist<-reef_tik_dist2 %>% 
+  filter(str_detect(Type, "dist")) %>% 
+   rename(distance = ".") %>% 
+   dplyr::select(distance)
+
+done<-cbind(cent, test2) %>% 
+   cbind(., dist)
+
+nutri_by_tikina <- done %>% 
+   as.data.frame() %>% 
+   dplyr::select(-geometry) %>% 
+   group_by(TIKINA) %>% 
+   summarise(total_n = sum(n_reefs_tonnes, na.rm = T)) %>% 
+  full_join(., tik, by = c("TIKINA"))
+
+st_write(done, here("output_data/Nutrients_at_reefs/Reef_nutrients_nearest_Tikina.shp"), delete_layer = T)
+st_write(nutri_by_tikina, here("output_data/Nutrients_at_reefs/Tikina_reef_nutrients.shp"), delete_layer = T)
+```
+
+
+# Nearest Main basin to each coral reef
+
+```{r}
+basin<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  st_transform(., t_crs) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_area = sum(area_m2, na.rm = T))
+
+basin_df<-basin %>% 
+  as.data.frame() %>% 
+  ungroup() %>% 
+  dplyr::select(-geometry) %>% 
+  dplyr::select(MAIN_BAS)
+```
+
+
+```{r}
+
+reef_bas_dist<-st_nn(cent, basin, k = 1, parallel = 10, returnDist = T) %>% 
+   unlist() %>% 
+   as.data.frame()
+
+reef_bas_dist2<-reef_bas_dist %>% 
+  tibble::rownames_to_column(., "Type")
+
+bas_pos<-reef_bas_dist2 %>% 
+  filter(str_detect(Type, "nn")) %>% 
+   rename(bas_val = ".")
+
+bas_test2<-basin_df[bas_pos$bas_val,] %>% 
+   as.data.frame()  %>% 
+  rename(MAIN_BAS = ".")
+
+bas_dist<-reef_bas_dist2 %>% 
+  filter(str_detect(Type, "dist")) %>% 
+   rename(distance = ".") %>% 
+   dplyr::select(distance)
+
+bas_done<-cbind(cent, bas_test2) %>% 
+   cbind(., bas_dist)
+
+nutri_by_basin <- bas_done %>% 
+   as.data.frame() %>% 
+   dplyr::select(-geometry) %>% 
+   group_by(MAIN_BAS) %>% 
+   summarise(total_n = sum(n_reefs_tonnes, na.rm = T)) %>% 
+  full_join(., basin)
+
+st_write(bas_done, here("output_data/Nutrients_at_reefs/Reef_nutrients_nearest_basin.shp"), delete_layer = T)
+st_write(nutri_by_basin, here("output_data/Nutrients_at_reefs/Basin_reef_nutrients.shp"), delete_layer = T)
+```
