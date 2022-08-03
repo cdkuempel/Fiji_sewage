@@ -1,0 +1,339 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-07-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(sf)
+library(ggplot2)
+library(viridis)
+library(ggExtra)
+library(cowplot)
+library(fasterize)
+library(raster)
+library(nngeo)
+library(tmap)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+```
+
+
+# Fiji
+
+```{r}
+fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  filter(!MAIN_BAS %in% c(5120082250)) %>% 
+  mutate(dissolve = 1) %>% 
+  group_by(dissolve) %>% 
+  summarise(total_area = sum(area_km2, na.rm = T))  %>% 
+  st_transform(., t_crs)
+```
+```{r}
+ggplot(data = fiji_basins12) +
+  geom_sf(fill = NA, alpha = 0.3) 
+```
+# Nutrient plumes
+
+```{r}
+plumes<-raster(here("output_data/Plumes/Merged_plumes.tif")) %>% 
+  projectRaster(., crs = t_crs)
+
+plumescrop<-crop(plumes, fiji_basins12)
+plumescrop[plumescrop==0]<-NA
+```
+
+```{r}
+plumes_spdf <- as(plumescrop, "SpatialPixelsDataFrame")
+plumes_df <- as.data.frame(plumes_spdf)
+colnames(plumes_df) <- c("value", "x", "y")
+```
+
+Pourpoints
+
+```{r}
+pp<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp"))
+```
+
+```{r}
+ggplot() + 
+  geom_tile(data=plumes_df, aes(x=x, y=y, fill=log10(value+1)), alpha=0.8) + 
+  geom_sf(data = fiji_basins12, fill = NA, alpha = 0.3)  +
+  geom_sf(data = pp) +
+  scale_fill_viridis(direction = -1) +
+  #coord_sf() +
+  theme_map() #+
+ # theme(legend.position="bottom") +
+  #theme(legend.key.width=unit(2, "cm"))
+```
+
+# Nutrients on reefs
+```{r}
+reef_nutri<-st_read(here("output_data/Nutrients_at_reefs/Reef_nutrient_centroids.shp")) %>% 
+  st_transform(., t_crs) %>% 
+   arrange(n_rfs_t)
+
+test2<-st_coordinates(reef_nutri)
+
+test3<- reef_nutri %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  cbind(., test2)
+```
+
+```{r}
+sub_reef_nutri<-reef_nutri #%>% 
+  #filter(prop <=0.5)
+
+mybreaks <- as.numeric(quantile(sub_reef_nutri$n_rfs_t))
+
+p<-ggplot(data = fiji_basins12) +
+  geom_sf(fill = NA, alpha = 0.3) +
+  geom_point(data = test3, aes(x = X, y = Y, size = n_rfs_t, color = n_rfs_t), shape = 20, stroke = F) +
+  scale_size_continuous(name="Nitrogen\n(tonnes)",trans = "log", breaks=mybreaks) +
+ # scale_alpha_continuous(name="Nitrogen (tonnes)") +
+  scale_color_viridis( trans="log", breaks=mybreaks, name="Nitrogen\n(tonnes)", direction = -1) +
+  guides(colour = guide_legend()) +
+  theme_void() +
+  coord_sf() +
+  theme(legend.position = "left")
+p
+```
+Pick line color
+
+```{r}
+#viridis_pal()(20)
+```
+
+
+```{r}
+p1 <- ggMarginal(p,color = "#20A386FF", size = 4)
+p1
+```
+
+```{r}
+ggsave(here("figures/Nutrients_on_reefs_bubble_plot.png"), dpi = 300)
+```
+
+```{r}
+reef_tik<-st_read(here("output_data/Nutrients_at_reefs/Tikina_reef_nutrients.shp")) %>% 
+  st_transform(., t_crs)
+```
+```{r}
+crop_reef_tik<-st_crop(reef_tik, extent(fiji_basins12))
+ggplot(crop_reef_tik) + 
+  geom_sf(aes(fill = total_n)) +
+  scale_fill_viridis(name = "Nitogen\n(tonnes)", direction = -1, na.value = "white") +
+  theme_void()
+```
+
+# Nutrients by basin
+```{r}
+nutri_basin<-st_read(here("output_data/Nutrients_at_reefs/Basin_reef_nutrients.shp")) %>% 
+  filter(!MAIN_BAS %in% c(5120082250)) 
+```
+```{r}
+ggplot(nutri_basin) + 
+  geom_sf(aes(fill = total_n)) +
+  scale_fill_viridis(name = "Nitogen\n(tonnes)", direction = -1, na.value = "grey") +
+  theme_void()
+```
+```{r}
+fiji_basins<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  dplyr::select(MAIN_BAS) %>% 
+  st_transform(., t_crs) %>% 
+  mutate(area_m = as.numeric(st_area(.))) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_area = sum(area_m, na.rm = T))
+  
+```
+
+
+
+```{r}
+bas_list<-c(5120081800, 5120081890, 5120081820, 5120081600, 5120082000, 5120082100, 5120082230, 5120081880, 5120081810, 5120081850, 5120081620)
+
+bas_list2<-c(5120081840, 5120081870, 5120081860, 5120081790, 5120081720, 5120081900, 5120081830, 5120082240, 5120082060)
+
+test2<-test %>% 
+  filter(MAIN_BAS %in% bas_list)
+
+test3<-test %>% 
+  filter(!MAIN_BAS %in% bas_list,
+         !MAIN_BAS %in% bas_list2)
+
+```
+
+
+# Basin nutrient discharge
+
+
+```{r}
+septic<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BA) %>% 
+  summarise(septic_N = sum(N, na.rm = T)*0.001) %>% 
+  rename(MAIN_BAS = MAIN_BA)  %>% 
+  pivot_longer(., cols = septic_N, names_to = "Type", values_to = "N")
+```
+
+```{r}
+direct<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_direct_pourpoints.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  group_by(MAIN_BA) %>% 
+  summarise(direct_N = sum(N, na.rm = T)*0.001)  %>% 
+  rename(MAIN_BAS = MAIN_BA)  %>% 
+  pivot_longer(., cols = direct_N, names_to = "Type", values_to = "N")
+```
+```{r}
+connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp")) %>% 
+  mutate(conn_N= N_final*0.001) %>% 
+  dplyr::select(Name, Tikina, ID, conn_N)
+
+basins_df<-fiji_basins %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  dplyr::select(MAIN_BAS)
+
+conn_bas_pos<-st_nn(connected, fiji_basins, k = 1, parallel = 10) %>% 
+   unlist()
+
+bas<-basins_df[conn_bas_pos,]
+
+conn_basin<-cbind(connected, bas) %>% 
+  dplyr::select(bas, conn_N) %>% 
+  rename(MAIN_BAS = bas) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  pivot_longer(., cols = conn_N, names_to = "Type", values_to = "N")
+```
+
+Join all together
+
+```{r}
+basin_nutri_all<-rbind(septic, direct, conn_basin) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(basin_N = sum(N, na.rm = T))
+```
+
+
+```{r}
+
+basin_nutri_all2<-basin_nutri_all %>% 
+  filter(MAIN_BAS %in% test3$MAIN_BAS)
+
+basin_reef_join<-full_join(basin_nutri_all, nutri_basin) %>% 
+  rename(reef_N = total_n) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+ # filter(!is.na(basin_N) == T,
+#         basin_N>0) %>% 
+  mutate(reef_N = ifelse(is.na(reef_N) == T, 0, reef_N),
+         basin_N = ifelse(is.na(basin_N) == T, 0, basin_N),
+         ratio = reef_N/basin_N) 
+```
+
+```{r}
+sub_basin_reef_join<-basin_reef_join %>% 
+  filter(basin_N>0)
+
+med_basin<-median(sub_basin_reef_join$basin_N, na.rm = T)
+med_reef<-median(sub_basin_reef_join$reef_N,na.rm = T)
+
+ggplot(sub_basin_reef_join, aes(x = basin_N, y = reef_N, col = ratio)) +
+  geom_point() +
+  scale_x_log10() +
+  scale_y_log10() +
+  scale_color_viridis_c(trans = "log10", direction = -1) +
+  geom_hline(yintercept = log10(med_reef+1)) +
+  geom_vline(xintercept = log10(med_basin+1)) +
+  theme_bw() +
+  ylab("Reef N exposure (tonnes, log)") +
+  xlab("Watershed N discharge (tonnes, log)") +
+  labs(colour = "Reef exposure/Watershed discharge")
+```
+```{r}
+ggsave(here("figures/Basin_export_vs_coastal_nitrogen_log10.png"))
+```
+
+```{r}
+# Upper right - high export, high exposure
+length(which(sub_basin_reef_join$basin_N>=med_basin & sub_basin_reef_join$reef_N>=med_reef))
+
+# Upper left, low export, high exposure
+length(which(sub_basin_reef_join$basin_N<med_basin & sub_basin_reef_join$reef_N>=med_reef))
+
+# Lower right, high export, low exposure
+length(which(sub_basin_reef_join$basin_N>=med_basin & sub_basin_reef_join$reef_N<med_reef))
+
+# Lower elft, low export, low exposure
+length(which(sub_basin_reef_join$basin_N<med_basin & sub_basin_reef_join$reef_N<med_reef))
+```
+
+```{r}
+# No watershed discharge but high exposure
+
+test_reef_n<-basin_reef_join %>% 
+  filter(basin_N == 0)
+
+length(which(test_reef_n$reef_N>=med_reef))
+```
+
+```{r}
+test_basin<-fiji_basins %>% 
+  filter(MAIN_BAS %in% test_reef_n$MAIN_BAS)
+```
+
+```{r}
+tm_shape(test_basin) +
+  tm_polygons()
+```
+```{r}
+test_reef_0<-basin_reef_join %>% 
+  filter(reef_N == 0)
+
+test_reef<-fiji_basins %>% 
+  filter(MAIN_BAS %in% test_reef_0$MAIN_BAS)
+```
+
+```{r}
+tm_shape(test_reef) +
+  tm_polygons()
+```
+```{r}
+tm_shape(fiji_basins) +
+  tm_polygons()
+```
+```{r}
+high_exposure<-sub_basin_reef_join %>% 
+  filter(reef_N>=med_reef)
+
+test_high_exposure<-fiji_basins %>% 
+  filter(MAIN_BAS %in% high_exposure$MAIN_BAS)
+
+tmap_mode("view")
+
+tm_shape(test_high_exposure) +
+  tm_polygons()
+```
+
+```{r}
+high_exposure<-basin_reef_join[which(basin_reef_join$reef_N>med_reef),]
+
+exposure_df<-nutri_basin %>% 
+  filter(MAIN_BAS %in% high_exposure$MAIN_BAS)
+```
+
+```{r}
+tm_shape(exposure_df) +
+  tm_polygons("total_n")
+```
+
