@@ -156,6 +156,20 @@ Leach rate of 0.1 means that 10% of nutrients leaches (90% lost), a value of 90%
 leach2 of 0.1 means that 90% of nutrients leaches (10% lost)
 
 ```{r}
+test<-all_septic %>% 
+  filter(buffer == 35) %>% 
+  mutate(leach2 = 1-leach_rate,
+          add  = round(treatment_rate + leach2,1)) %>% 
+  filter(add == 0.2)
+
+test2<-all_direct %>% 
+  filter(buffer == 35) %>% 
+  mutate(leach2 = 1-leach_rate,
+          add  = round(treatment_rate + leach2,1)) %>% 
+  filter(add == 0.2)
+```
+
+```{r}
 septic_treat_leach<-all_septic %>% 
   filter(buffer == 35) %>% 
    mutate(leach2 = 1-leach_rate,
