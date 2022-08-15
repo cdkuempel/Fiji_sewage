@@ -262,6 +262,51 @@ total_p_surface
 (total_septic_n)/total_n_surface
 (total_direct_n)/total_n_surface
 ```
+
+Kinoya
+
+```{r}
+kinoya<-nutri_rm_connected %>% 
+  filter(STP_x == "Kinoya WWTP")
+
+(kinoya$N_final*0.001)/total_n_surface
+```
+
+# Sensitivity
+
+```{r}
+all_septic<-read.csv(here("output_data/Sensitivity/All_septic_nitrogen_treatment_buffer.csv"))
+all_other<-read.csv(here("output_data/Sensitivity/All_other_nitrogen_treatment_buffer.csv"))
+```
+
+```{r}
+total_n_surface_high_est<-all_septic %>% 
+  filter(buffer == 100,
+         n_rm2 == 0.1)
+
+total_n_surface_high_est2<-all_other %>% 
+  filter(buffer == 100,
+         n_rm2 == 0.1)
+```
+
+```{r}
+(kinoya$N_final*0.001)/(total_n_surface_high_est$N_final*0.001+ total_n_surface_high_est2$N_final*0.001+ conn_treat_n*0.001)
+```
+
+```{r}
+(conn_treat_n*0.001)/(total_n_surface_high_est$N_final*0.001+ total_n_surface_high_est2$N_final*0.001+ conn_treat_n*0.001)
+```
+
+```{r}
+(total_n_surface_high_est$N_final*0.001)/(total_n_surface_high_est$N_final*0.001+ total_n_surface_high_est2$N_final*0.001+ conn_treat_n*0.001)
+```
+```{r}
+(total_n_surface_high_est2$N_final*0.001)/(total_n_surface_high_est$N_final*0.001+ total_n_surface_high_est2$N_final*0.001+ conn_treat_n*0.001)
+```
+```{r}
+(total_n_surface_high_est$N_final*0.001)/(total_n_surface_high_est$N_final*0.001+ total_n_surface_high_est2$N_final*0.001+ conn_treat_n*0.001)
+```
+
 # Tourism
 
 
