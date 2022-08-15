@@ -36,8 +36,8 @@ fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>%
   st_transform(., t_crs)
 ```
 ```{r}
-ggplot(data = fiji_basins12) +
-  geom_sf(fill = NA, alpha = 0.3) 
+#ggplot(data = fiji_basins12) +
+#  geom_sf(fill = NA, alpha = 0.3) 
 ```
 # Nutrient plumes
 
@@ -55,18 +55,13 @@ plumes_df <- as.data.frame(plumes_spdf)
 colnames(plumes_df) <- c("value", "x", "y")
 ```
 
-Pourpoints
-
-```{r}
-pp<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp"))
-```
 
 ```{r}
 ggplot() + 
-  geom_tile(data=plumes_df, aes(x=x, y=y, fill=log10(value+1)), alpha=0.8) + 
-  geom_sf(data = fiji_basins12, fill = NA, alpha = 0.3)  +
-  geom_sf(data = pp) +
-  scale_fill_viridis(direction = -1) +
+  geom_sf(data = fiji_basins12, fill = "grey", alpha = 0.3)  +
+  geom_tile(data=plumes_df, aes(x=x, y=y, fill=value+1), alpha=0.8) + 
+  #geom_sf(data = pp) +
+  scale_fill_viridis(direction = -1, trans = "log10") +
   #coord_sf() +
   theme_map() #+
  # theme(legend.position="bottom") +
@@ -88,21 +83,35 @@ test3<- reef_nutri %>%
 ```
 
 ```{r}
-sub_reef_nutri<-reef_nutri #%>% 
-  #filter(prop <=0.5)
+ss_centroids <- st_centroid(crop_reef_tik)
+  
+```
 
-mybreaks <- as.numeric(quantile(sub_reef_nutri$n_rfs_t))
+
+```{r}
+sub_reef_nutri<-test3 %>%  
+  #filter(prop <=0.5) 
+  mutate(area_km2 = area_m2*1e-6,
+         N_km2 = n_reefs/area_km2)
+
+mybreaks <- as.numeric(quantile(sub_reef_nutri$N_km2))
+
+# Use fiji_basins to plot basins,
+# Use crop_reef_nutri for Tikinas
 
 p<-ggplot(data = fiji_basins12) +
-  geom_sf(fill = NA, alpha = 0.3) +
-  geom_point(data = test3, aes(x = X, y = Y, size = n_rfs_t, color = n_rfs_t), shape = 20, stroke = F) +
-  scale_size_continuous(name="Nitrogen\n(tonnes)",trans = "log", breaks=mybreaks) +
+  geom_sf(fill = "grey") +
+  #geom_sf_text(aes(label = TIKINA), colour = "black") +
+  #geom_label_repel(aes(label = TIKINA, geometry = geometry),
+  #  stat = "sf_coordinates") +
+  geom_point(data = sub_reef_nutri, aes(x = X, y = Y, size = N_km2+1, color = N_km2+1), shape = 20, stroke = F) +
+  scale_size_continuous(name="Nitrogen kg/km2", trans ="log10") +
  # scale_alpha_continuous(name="Nitrogen (tonnes)") +
-  scale_color_viridis( trans="log", breaks=mybreaks, name="Nitrogen\n(tonnes)", direction = -1) +
+  scale_color_viridis(name="Nitrogen kg/km2", direction = -1, trans = "log10") +
   guides(colour = guide_legend()) +
   theme_void() +
   coord_sf() +
-  theme(legend.position = "left")
+  theme(legend.position = "left") 
 p
 ```
 Pick line color
@@ -112,13 +121,9 @@ Pick line color
 ```
 
 
-```{r}
-p1 <- ggMarginal(p,color = "#20A386FF", size = 4)
-p1
-```
 
 ```{r}
-ggsave(here("figures/Nutrients_on_reefs_bubble_plot.png"), dpi = 300)
+ggsave(here("figures/Nutrients_kg_km2_on_reefs_bubble_plot_log10.png"), dpi = 300)
 ```
 
 ```{r}
