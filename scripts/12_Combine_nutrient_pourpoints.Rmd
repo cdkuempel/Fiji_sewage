@@ -30,7 +30,7 @@ st_crs(connected)<-t_crs
 connected<-st_transform(connected, t_crs)
 
 connected<-connected %>% 
-  dplyr::select(N_final, P_final) %>% 
+  dplyr::select(N_final, P_final, MAIN_BAS) %>% 
   rename(N = N_final,
          P = P_final) %>% 
   mutate(type = "Connected")
@@ -41,9 +41,10 @@ connected<-connected %>%
 
 ```{r}
 septic<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp")) %>% 
-  dplyr::select(N_trt_l, P_trt_l) %>% 
+  dplyr::select(N_trt_l, P_trt_l, MAIN_BA) %>% 
   rename(N = N_trt_l,
-         P = P_trt_l) %>% 
+         P = P_trt_l,
+         MAIN_BAS = MAIN_BA) %>% 
   mutate(type = "Septic") %>% 
   st_transform(., t_crs)
 st_crs(septic)<-t_crs
@@ -54,9 +55,10 @@ st_crs(septic)<-t_crs
 
 ```{r}
 direct<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_direct_pourpoints.shp")) %>% 
-  dplyr::select(N_trt_l, P_trt_l) %>% 
+  dplyr::select(N_trt_l, P_trt_l, MAIN_BA) %>% 
   rename(N = N_trt_l,
-         P = P_trt_l) %>% 
+         P = P_trt_l,
+         MAIN_BAS = MAIN_BA) %>% 
   mutate(type = "Direct") %>% 
   st_transform(., t_crs)
 
@@ -67,9 +69,10 @@ st_crs(direct)<-t_crs
 
 ```{r}
 coastal_septic<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp")) %>% 
-  dplyr::select(spt_N__, spt_P__) %>% 
+  dplyr::select(spt_N__, spt_P__, MAIN_BA) %>% 
   rename(N = spt_N__,
-         P = spt_P__) %>% 
+         P = spt_P__,
+         MAIN_BAS = MAIN_BA) %>% 
   mutate(type = "Coastal_septic") %>% 
   st_transform(., t_crs) 
 
@@ -78,9 +81,10 @@ st_crs(coastal_septic)<-t_crs
 
 ```{r}
 coastal_direct<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp")) %>% 
-  dplyr::select(drc_N__, drc_P__) %>% 
+  dplyr::select(drc_N__, drc_P__, MAIN_BA) %>% 
   rename(N = drc_N__,
-         P = drc_P__) %>% 
+         P = drc_P__,
+         MAIN_BAS = MAIN_BA) %>% 
   mutate(type = "Coastal_direct") %>% 
   st_transform(., t_crs) 
 

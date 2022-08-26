@@ -44,8 +44,17 @@ stp<-stp_crs %>%
 # Location of pourpoints
 
 ```{r}
-basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp")) %>% 
-  st_transform(., crs = t_crs)
+basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  st_transform(., t_crs) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_area = sum(area_m2, na.rm = T))
+```
+
+
+
+```{r}
+#basins12<-st_read(here("raw_data/Basins/BasinATLAS_v10_lev12.shp")) %>% 
+#  st_transform(., crs = t_crs)
 ```
 
 
@@ -126,7 +135,9 @@ st_crs(pour_points)<-t_crs
 
 pour_points<-st_transform(pour_points, crs = t_crs)
 
-st_write(pour_points, here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp"), delete_layer = T)
+pour_points_final<-st_intersection(pour_points, basins12)
+
+st_write(pour_points_final, here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp"), delete_layer = T)
 
 ```
 

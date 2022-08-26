@@ -56,19 +56,23 @@ direct_P_xy<-as_tibble(coast_direct_P, values = TRUE, xy = TRUE)
 ```{r}
 #Subset to only include cells that have nutrient values
 sub_septic_N<-septic_N_xy %>% 
-  filter(!is.na(cellvalue) == T) %>% 
+  filter(!is.na(cellvalue) == T,
+         cellvalue>0) %>% 
   rename(septic_N = cellvalue)
 
 sub_septic_P<-septic_P_xy %>% 
-  filter(!is.na(cellvalue) == T)%>% 
+  filter(!is.na(cellvalue) == T,
+         cellvalue>0)%>% 
   rename(septic_P = cellvalue)
 
 sub_direct_N<-direct_N_xy %>% 
-  filter(!is.na(cellvalue) == T)%>% 
+  filter(!is.na(cellvalue) == T,
+         cellvalue>0)%>% 
   rename(direct_N = cellvalue)
 
 sub_direct_P<-direct_P_xy %>% 
-  filter(!is.na(cellvalue) == T) %>% 
+  filter(!is.na(cellvalue) == T,
+         cellvalue>0) %>% 
   rename(direct_P = cellvalue)
 ```
 
@@ -148,13 +152,28 @@ direct_sf<-direct_sf %>%
 ```
 
 
+# Determine which basin pourpoints are in
+
+
+```{r}
+basin<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  st_transform(., t_crs) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_area = sum(area_m2, na.rm = T))
+```
+```{r}
+septic_sf_basin<-st_intersection(septic_sf, basin)
+direct_sf_basin<-st_intersection(direct_sf, basin)
+```
+
+
 # Save nutrients at pourpoints
 
 Septic has much fewer pourpoints than direct.
 
 ```{r}
-st_write(septic_sf, here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp"), delete_layer = TRUE)
+st_write(septic_sf_basin, here("output_data/Nutrients_at_pourpoints/Coastal_septic_pourpoints.shp"), delete_layer = TRUE)
 
-st_write(direct_sf, here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp"), delete_layer = TRUE)
+st_write(direct_sf_basin, here("output_data/Nutrients_at_pourpoints/Coastal_direct_pourpoints.shp"), delete_layer = TRUE)
 ```
 
