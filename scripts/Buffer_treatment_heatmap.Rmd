@@ -50,6 +50,8 @@ all_septic2<-all_septic %>%
   mutate(N_final = N_total * n_rm,
           z = ifelse(buffer == 35 & n_rm == 0.8, TRUE, FALSE),
          n_rm2 = 1-n_rm)
+
+write.csv(all_septic2, here("output_data/Sensitivity/All_septic_nitrogen_treatment_buffer.csv"))
 ```
 
 
@@ -97,6 +99,8 @@ all_other2<-all_other %>%
   mutate(N_final = N_total * n_rm,
           z = ifelse(buffer == 35 & n_rm == 0.2, TRUE, FALSE),
          n_rm2 = 1-n_rm)
+
+write.csv(all_other2, here("output_data/Sensitivity/All_other_nitrogen_treatment_buffer.csv"))
 ```
 
 
