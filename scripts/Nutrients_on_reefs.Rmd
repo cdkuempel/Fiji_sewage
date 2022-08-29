@@ -15,7 +15,7 @@ library(sf)
 library(raster)
 library(here)
 library(tabularaster)
-devtools::install_github("isciences/exactextractr")
+#devtools::install_github("isciences/exactextractr")
 library(exactextractr)
 library(tmap)
 
@@ -67,7 +67,8 @@ These currently don't have the wave/current information added, just decay functi
 #  force_fallback = FALSE
 #)
 
-r<-raster(here("output_data/Plumes/Merged_plumes1.tif"))
+#r<-raster(here("output_data/Plumes/.tif"))
+r<-raster(here("output_data/Plumes/All_plumes_fiji.tif"))
 rp<-projectRaster(r, crs = t_crs)
 ```
 
@@ -82,6 +83,7 @@ rp<-projectRaster(r, crs = t_crs)
 #wcmc_crop<-wcmc_crop %>% 
 #  dplyr::select(LAYER_NAME, NAME, LOC_DEF)
 ```
+
 ```{r}
 cent<-st_centroid(reefs)
 ```
@@ -102,6 +104,70 @@ done<-cbind(reefs, n_df)
 
 st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.shp"), delete_layer = TRUE)
 ```
+
+# Connected vs unconnected on reefs
+
+```{r}
+conn<-raster(here("output_data/Plumes/Connected_plume.tif"))
+conn<-projectRaster(conn, crs = t_crs)
+
+unconn<-raster(here("output_data/Plumes/Unconnected_plume.tif"))
+unconn<-projectRaster(unconn, crs = t_crs)
+
+```
+
+
+
+```{r}
+conn_n_reefs<-exactextractr::exact_extract(conn, reefs, fun = "sum")
+unconn_n_nreefs<-exactextractr::exact_extract(unconn, reefs, fun = "sum")
+
+conn_n_df<-as.data.frame(conn_n_reefs)
+unconn_n_df<-as.data.frame(unconn_n_nreefs)
+
+done<-cbind(reefs, conn_n_df) %>% 
+  cbind(unconn_n_df)
+
+st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_treatment.shp"), delete_layer = TRUE)
+```
+
+# Nutrients on reefs by basin
+
+```{r}
+ras_files<-list.files(here("output_data/Plumes"), pattern = "5", full.names = T) %>% 
+  str_subset(.,pattern="xml", negate = TRUE)
+
+all_re<-lapply(ras_files, raster)
+
+n_basins<-data.frame(id = 1:nrow(reefs))
+
+n_basins<-list()
+
+n_basins<-data.frame(matrix(NA, nrow = nrow(reefs), ncol = length(all_re)))
+
+for(i in 1:length(all_re)){
+  print(i)
+  plume<-all_re[[i]]
+  plume<-projectRaster(plume, crs = t_crs)
+  
+  name<-names(plume)
+  name2<-str_extract(name, "[0-9]+")
+  
+  bas_n_reefs<-exactextractr::exact_extract(plume, reefs, fun = "sum")
+  
+  bas_n_df<-as.data.frame(bas_n_reefs)
+  
+  n_basins[,i]<-bas_n_df
+  
+  colnames(n_basins)[i]<-name2
+
+}
+
+basin_join<-cbind(reefs, n_basins)
+
+st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp"))
+```
+
 
 ```{r}
 tmap_mode("view")
