@@ -54,15 +54,16 @@ basin<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>%
 #READ POUR POINTS SHAPEFILE
 
 ```{r}
-pour_points<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp")) 
+pour_points<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp")) %>% 
+  st_transform(., st_crs(basin))
 
 pour_point_basin<-st_intersection(pour_points, basin)
 
-connected<-pour_points %>% 
-  filter(type == "Connected")
+#connected<-pour_points %>% 
+#  filter(type == "Connected")
 
-unconnected<-pour_points %>% 
-  filter(type != "Connected")
+#unconnected<-pour_points %>% 
+#  filter(type != "Connected")
 ```
 
 
@@ -80,19 +81,19 @@ pour_points<-st_as_sf(pour_points)
 #divide pour points by groups depending on location
 
 ```{r}
-p_extent=st_as_sfc(st_bbox(pour_points))
-p_extent_sub = st_make_grid(p_extent,n = c(40,20)) %>%
-  st_as_sf() %>% 
-  #rename(geom=x) %>%
-  mutate(group=1:nrow(.))
+#p_extent=st_as_sfc(st_bbox(pour_points))
+#p_extent_sub = st_make_grid(p_extent,n = c(40,20)) %>%
+#  st_as_sf() %>% 
+#  #rename(geom=x) %>%
+#  mutate(group=1:nrow(.))
 ```
 
 
 #tm_shape(p_extent_sub)+tm_polygons()
 
 ```{r}
-pour_points = st_join(st_as_sf(pour_points), p_extent_sub, join = st_intersects) %>% 
-  mutate(ID=1:nrow(.)) 
+#pour_points = st_join(st_as_sf(pour_points), p_extent_sub, join = st_intersects) %>% 
+#  mutate(ID=1:nrow(.)) 
 ```
 
 
@@ -107,7 +108,7 @@ pour_points<-as(pour_points,"Spatial")
 #point_list<-split(pour_points,as.character(pour_points@data$group))
 
 ```{r}
-point_list<-split(pour_points,as.character(pour_points$group))
+point_list<-split(pour_points,as.character(pour_points$MAIN_BAS))
 ```
 
 
@@ -120,17 +121,22 @@ point_list<-split(pour_points,as.character(pour_points$group))
 
 ```{r}
 pb <- txtProgressBar(min = 0, max = length(point_list), style = 3)
-sed_plume_merge<-list()
-for (p in 100:length(point_list)) {
-  setTxtProgressBar(pb, p)
-  focus_points<-point_list[[p]]
+
+
+#for(p in 1:length(point_list)){
+
+plume_fun<-function(p){
+  #setTxtProgressBar(pb, p)
+  #focus_points<-point_list[[p]]
+  focus_points<-p
+  bas<-unique(focus_points$MAIN_BAS)
 tb <- txtProgressBar(min = 0, max = nrow(focus_points), style = 3)
 re<-list()#to save your rasters
 for (i in 1:nrow(focus_points)){#only the first 10 pour points
   setTxtProgressBar(tb, i) 
   re[[i]]<-  sed_flow(  
     pp_sf=focus_points[i,],#list of pour points (each element of the list should be a point)
-    initial.value = focus_points[i,"N"][[1]],#value with sediment export value
+    initial.value = focus_points[i,"N"][[1]],#value with nitrogen export value
     ocean_raster,
     buffer_value=60000,#buffer from pour point (in meters)-change value to make nutrients go farther 
     resolution_raster=1,#in km
@@ -144,11 +150,8 @@ for (i in 1:nrow(focus_points)){#only the first 10 pour points
 newextent<-extent(Reduce(extend,re))
 
 re = lapply(re, function(r){extend(r,newextent)})
-```
-
 
 #set all rasters to same extent
-```{r}
 for (i in 1:length(re)){
   r<-re[[i]]
   r<-extend(r,newextent)
@@ -156,20 +159,32 @@ for (i in 1:length(re)){
   re[[i]]<-r
   #print(i)
 }
-```
 
-#merge all rasters
-```{r}
-sed_plume_merge[[p]]<-Reduce("+", re)
-gc()
-print(p)
+all_re<-Reduce("+", re)
+
+writeRaster(all_re, here(paste0("output_data/Plumes/", bas,"_plume.tif")), overwrite = TRUE)
+
+rm(re)
 }
+
+pbmclapply(point_list, plume_fun, mc.style = "ETA", mc.cores = 7)
+
+
 ```
 
+```{r}
+#merge all rasters
+ras_files<-list.files(here("output_data/Plumes"), pattern = "5", full.names = T) %>% 
+  str_subset(.,pattern="xml", negate = TRUE)
+
+all_re<-lapply(ras_files, raster)
+
+```
+
+```{r}
 #add all rasters and save
 
-```{r}
-sed<-plyr::compact(sed_plume_merge)
+sed<-plyr::compact(all_re)
 
 newextent<-extent(Reduce(extend,sed))
 
@@ -183,24 +198,8 @@ for (i in 1:length(re)){
   print(i)
 }
 
+all_re<-Reduce("+", re)
 
-save(re,file = "N_plumes_fij_1.R")
-
+writeRaster(all_re, here("output_data/Plumes/All_plumes_fiji.tif"), ovewrite = T)
 ```
-
-#merge all rasters
-```{r}
-re<-Reduce("+", re)
-
-gc()
-
-plot(re)
-
-```
-
-#save rasters
-```{r}
-writeRaster(re,"N_plumes_fiji_1.tif",overwrite = T)
-```
-
 
