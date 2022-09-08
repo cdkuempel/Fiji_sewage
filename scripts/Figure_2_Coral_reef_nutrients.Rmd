@@ -20,6 +20,8 @@ library(fasterize)
 library(raster)
 library(nngeo)
 library(tmap)
+library(here)
+library(stars)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
@@ -35,310 +37,212 @@ fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>%
   summarise(total_area = sum(area_km2, na.rm = T))  %>% 
   st_transform(., t_crs)
 ```
-```{r}
-#ggplot(data = fiji_basins12) +
-#  geom_sf(fill = NA, alpha = 0.3) 
-```
-# Nutrient plumes
 
-```{r}
-plumes<-raster(here("output_data/Plumes/Merged_plumes.tif")) %>% 
-  projectRaster(., crs = t_crs)
 
-plumescrop<-crop(plumes, fiji_basins12)
-plumescrop[plumescrop==0]<-NA
-```
+## Total
 
-```{r}
-plumes_spdf <- as(plumescrop, "SpatialPixelsDataFrame")
-plumes_df <- as.data.frame(plumes_spdf)
-colnames(plumes_df) <- c("value", "x", "y")
-```
 
 
 ```{r}
-ggplot() + 
-  geom_sf(data = fiji_basins12, fill = "grey", alpha = 0.3)  +
-  geom_tile(data=plumes_df, aes(x=x, y=y, fill=value+1), alpha=0.8) + 
-  #geom_sf(data = pp) +
-  scale_fill_viridis(direction = -1, trans = "log10") +
-  #coord_sf() +
-  theme_map() #+
- # theme(legend.position="bottom") +
-  #theme(legend.key.width=unit(2, "cm"))
-```
-
-# Nutrients on reefs
-```{r}
-reef_nutri<-st_read(here("output_data/Nutrients_at_reefs/Reef_nutrient_centroids.shp")) %>% 
+reef_nutri_treat<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_treatment.shp")) %>% 
   st_transform(., t_crs) %>% 
-   arrange(n_rfs_t)
+  mutate(area_m2 = as.numeric(st_area(.)))
 
-test2<-st_coordinates(reef_nutri)
+cent_treat<-st_centroid(reef_nutri_treat) 
 
-test3<- reef_nutri %>% 
+treat_plot_dat<-st_coordinates(cent_treat)
+
+treat_plot_dat2<- reef_nutri_treat %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry) %>% 
-  cbind(., test2)
-```
-
-```{r}
-ss_centroids <- st_centroid(crop_reef_tik)
+  cbind(., treat_plot_dat)
   
 ```
 
+```{r}
+total_ras<-raster(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.tif"))
+conn_ras<-raster(here("output_data/Nutrients_at_reefs/Connected_nitrogen_on_reefs.tif"))
+unconn_ras<-raster(here("output_data/Nutrients_at_reefs/Unconnected_nitrogen_on_reefs.tif"))
+```
 
 ```{r}
-sub_reef_nutri<-test3 %>%  
-  #filter(prop <=0.5) 
-  mutate(area_km2 = area_m2*1e-6,
-         N_km2 = n_reefs/area_km2)
+total_stars<-st_as_stars(total_ras)
+total_sf<-st_as_sf(total_stars)
+total_points<-st_centroid(total_sf) %>% 
+  arrange(Nitrogen_on_reefs) %>% 
+  filter(Nitrogen_on_reefs>0)
 
-mybreaks <- as.numeric(quantile(sub_reef_nutri$N_km2))
+title_exp <- expression("Kg/km"^2)
 
-# Use fiji_basins to plot basins,
-# Use crop_reef_nutri for Tikinas
-
-p<-ggplot(data = fiji_basins12) +
+p2<-ggplot(data = fiji_basins12) +
   geom_sf(fill = "grey") +
   #geom_sf_text(aes(label = TIKINA), colour = "black") +
   #geom_label_repel(aes(label = TIKINA, geometry = geometry),
   #  stat = "sf_coordinates") +
-  geom_point(data = sub_reef_nutri, aes(x = X, y = Y, size = N_km2+1, color = N_km2+1), shape = 20, stroke = F) +
-  scale_size_continuous(name="Nitrogen kg/km2", trans ="log10") +
+  geom_sf(data = total_points, aes(size = Nitrogen_on_reefs+1, color = Nitrogen_on_reefs+1)) +
+  #geom_point(data = treat_plot_dat2, aes(x = X, y = Y, size = layer+1, color = layer+1), shape = 20, stroke = F) +
+  scale_size_continuous(name = title_exp, trans ="log10") +
  # scale_alpha_continuous(name="Nitrogen (tonnes)") +
-  scale_color_viridis(name="Nitrogen kg/km2", direction = -1, trans = "log10") +
+  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  guides(colour = guide_legend()) +
+  theme_void() +
+  coord_sf() +
+  theme(legend.position = "left") 
+p2
+```
+```{r}
+ggsave(here("figures/Total_nutrients_kg_km2_on_reefs_bubble_plot_log10_ras.png"), dpi = 300, width = 5, height = 5)
+```
+
+```{r}
+conn_stars<-st_as_stars(conn_ras)
+conn_sf<-st_as_sf(conn_stars)
+conn_points<-st_centroid(conn_sf) %>% 
+  arrange(Connected_nitrogen_on_reefs ) %>% 
+  filter(Connected_nitrogen_on_reefs >0)
+
+p3<-ggplot(data = fiji_basins12) +
+  geom_sf(fill = "grey") +
+  #geom_sf_text(aes(label = TIKINA), colour = "black") +
+  #geom_label_repel(aes(label = TIKINA, geometry = geometry),
+  #  stat = "sf_coordinates") +
+  geom_sf(data = conn_points, aes(size = Connected_nitrogen_on_reefs +1, color = Connected_nitrogen_on_reefs+1)) +
+  #geom_point(data = treat_plot_dat2, aes(x = X, y = Y, size = layer+1, color = layer+1), shape = 20, stroke = F) +
+  scale_size_continuous(name = title_exp, trans ="log10") +
+ # scale_alpha_continuous(name="Nitrogen (tonnes)") +
+  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  guides(colour = guide_legend()) +
+  theme_void() +
+  coord_sf() +
+  theme(legend.position = "left") 
+p3
+```
+```{r}
+ggsave(here("figures/Connected_nutrients_kg_km2_on_reefs_bubble_plot_log10_ras.png"), dpi = 300, width = 5, height = 5)
+```
+
+```{r}
+unconn_stars<-st_as_stars(unconn_ras)
+unconn_sf<-st_as_sf(unconn_stars)
+unconn_points<-st_centroid(unconn_sf) %>% 
+  arrange(Unconnected_nitrogen_on_reefs ) %>% 
+  filter(Unconnected_nitrogen_on_reefs >0)
+
+p4<-ggplot(data = fiji_basins12) +
+  geom_sf(fill = "grey") +
+  #geom_sf_text(aes(label = TIKINA), colour = "black") +
+  #geom_label_repel(aes(label = TIKINA, geometry = geometry),
+  #  stat = "sf_coordinates") +
+  geom_sf(data = unconn_points, aes(size = Unconnected_nitrogen_on_reefs +1, color = Unconnected_nitrogen_on_reefs+1)) +
+  #geom_point(data = treat_plot_dat2, aes(x = X, y = Y, size = layer+1, color = layer+1), shape = 20, stroke = F) +
+  scale_size_continuous(name = title_exp, trans ="log10") +
+ # scale_alpha_continuous(name="Nitrogen (tonnes)") +
+  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  guides(colour = guide_legend()) +
+  theme_void() +
+  coord_sf() +
+  theme(legend.position = "left") 
+p4
+```
+```{r}
+ggsave(here("figures/Unconnected_nutrients_kg_km2_on_reefs_bubble_plot_log10_ras.png"), dpi = 300, width = 5, height = 5)
+```
+# Using point polygons - DON"T USE THIS ANYMORE
+
+<!--```{r}
+sub_reef_nutri<-treat_plot_dat2 %>%  
+  filter(n_reefs>0) %>%  
+  mutate(n_reefs_g = n_reefs*1000,
+         area_km2 = area_m2*1e-6,
+         N_km2 = n_reefs/area_km2,
+         N_m2 = n_reefs/area_m2) %>% 
+  arrange(N_m2)
+
+# Use fiji_basins to plot basins,
+# Use crop_reef_nutri for Tikinas
+
+title_exp <- expression("Nitrogen kg/km"^2)
+
+p<-ggplot(data = fiji_basins12) +
+  geom_sf(fill = "grey") +
+  geom_point(data = sub_reef_nutri, aes(x = X, y = Y, size = N_km2+1, color = N_km2+1), shape = 20, stroke = F) +
+  scale_size_continuous(name=title_exp, trans = "log10") +
+  scale_color_viridis(name= title_exp, direction = -1, trans = "log10") +
   guides(colour = guide_legend()) +
   theme_void() +
   coord_sf() +
   theme(legend.position = "left") 
 p
 ```
-Pick line color
-
-```{r}
-#viridis_pal()(20)
-```
-
-
 
 ```{r}
 ggsave(here("figures/Nutrients_kg_km2_on_reefs_bubble_plot_log10.png"), dpi = 300)
 ```
 
-```{r}
-reef_tik<-st_read(here("output_data/Nutrients_at_reefs/Tikina_reef_nutrients.shp")) %>% 
-  st_transform(., t_crs)
-```
-```{r}
-crop_reef_tik<-st_crop(reef_tik, extent(fiji_basins12))
-ggplot(crop_reef_tik) + 
-  geom_sf(aes(fill = total_n)) +
-  scale_fill_viridis(name = "Nitogen\n(tonnes)", direction = -1, na.value = "white") +
-  theme_void()
-```
-
-# Nutrients by basin
-```{r}
-nutri_basin<-st_read(here("output_data/Nutrients_at_reefs/Basin_reef_nutrients.shp")) %>% 
-  filter(!MAIN_BAS %in% c(5120082250)) 
-```
-```{r}
-ggplot(nutri_basin) + 
-  geom_sf(aes(fill = total_n)) +
-  scale_fill_viridis(name = "Nitogen\n(tonnes)", direction = -1, na.value = "grey") +
-  theme_void()
-```
-```{r}
-fiji_basins<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
-  dplyr::select(MAIN_BAS) %>% 
-  st_transform(., t_crs) %>% 
-  mutate(area_m = as.numeric(st_area(.))) %>% 
-  group_by(MAIN_BAS) %>% 
-  summarise(total_area = sum(area_m, na.rm = T))
-  
-```
-
-
+## Connected
 
 ```{r}
-bas_list<-c(5120081800, 5120081890, 5120081820, 5120081600, 5120082000, 5120082100, 5120082230, 5120081880, 5120081810, 5120081850, 5120081620)
+sub_reef_nutri_treat<-treat_plot_dat2 %>%  
+  filter(cnn_n_r>0) %>% 
+  mutate(area_km2 = area_m2*1e-6,
+         conn_N_km2 = cnn_n_r/area_km2,
+         unconn_N_km2 = uncnn__/area_km2) %>% 
+  arrange(conn_N_km2)
 
-bas_list2<-c(5120081840, 5120081870, 5120081860, 5120081790, 5120081720, 5120081900, 5120081830, 5120082240, 5120082060)
+# Use fiji_basins to plot basins,
+# Use crop_reef_nutri for Tikinas
 
-test2<-test %>% 
-  filter(MAIN_BAS %in% bas_list)
-
-test3<-test %>% 
-  filter(!MAIN_BAS %in% bas_list,
-         !MAIN_BAS %in% bas_list2)
-
-```
-
-
-# Basin nutrient discharge
-
-
-```{r}
-septic<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints.shp")) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
-  group_by(MAIN_BA) %>% 
-  summarise(septic_N = sum(N, na.rm = T)*0.001) %>% 
-  rename(MAIN_BAS = MAIN_BA)  %>% 
-  pivot_longer(., cols = septic_N, names_to = "Type", values_to = "N")
+conn_plot<-ggplot(data = fiji_basins12) +
+  geom_sf(fill = "grey") +
+  #geom_sf_text(aes(label = TIKINA), colour = "black") +
+  #geom_label_repel(aes(label = TIKINA, geometry = geometry),
+  #  stat = "sf_coordinates") +
+  geom_point(data = sub_reef_nutri_treat, aes(x = X, y = Y, size = conn_N_km2+1, color = conn_N_km2+1), shape = 20, stroke = F) +
+  scale_size_continuous(name=title_exp, trans = "log10") +
+ # scale_alpha_continuous(name="Nitrogen (tonnes)") +
+  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  guides(colour = guide_legend()) +
+  theme_void() +
+  coord_sf() +
+  theme(legend.position = "left") 
+conn_plot
 ```
 
 ```{r}
-direct<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_direct_pourpoints.shp")) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
-  group_by(MAIN_BA) %>% 
-  summarise(direct_N = sum(N, na.rm = T)*0.001)  %>% 
-  rename(MAIN_BAS = MAIN_BA)  %>% 
-  pivot_longer(., cols = direct_N, names_to = "Type", values_to = "N")
-```
-```{r}
-connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp")) %>% 
-  mutate(conn_N= N_final*0.001) %>% 
-  dplyr::select(Name, Tikina, ID, conn_N)
-
-basins_df<-fiji_basins %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
-  dplyr::select(MAIN_BAS)
-
-conn_bas_pos<-st_nn(connected, fiji_basins, k = 1, parallel = 10) %>% 
-   unlist()
-
-bas<-basins_df[conn_bas_pos,]
-
-conn_basin<-cbind(connected, bas) %>% 
-  dplyr::select(bas, conn_N) %>% 
-  rename(MAIN_BAS = bas) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
-  pivot_longer(., cols = conn_N, names_to = "Type", values_to = "N")
+ggsave(here("figures/Connected_nutrients_kg_km2_on_reefs_bubble_plot_log10.png"), dpi = 300)
 ```
 
-Join all together
 
-```{r}
-basin_nutri_all<-rbind(septic, direct, conn_basin) %>% 
-  group_by(MAIN_BAS) %>% 
-  summarise(basin_N = sum(N, na.rm = T))
-```
 
+## Unconnected
 
 ```{r}
 
-basin_nutri_all2<-basin_nutri_all %>% 
-  filter(MAIN_BAS %in% test3$MAIN_BAS)
+unconn_plot<-ggplot(data = fiji_basins12) +
+  geom_sf(fill = "grey") +
+  #geom_sf_text(aes(label = TIKINA), colour = "black") +
+  #geom_label_repel(aes(label = TIKINA, geometry = geometry),
+  #  stat = "sf_coordinates") +
+  geom_point(data = sub_reef_nutri_treat, aes(x = X, y = Y, size = unconn_N_km2+1, color = unconn_N_km2+1), shape = 20, stroke = F) +
+  scale_size_continuous(name=title_exp, trans ="log10") +
+ # scale_alpha_continuous(name="Nitrogen (tonnes)") +
+  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  guides(colour = guide_legend()) +
+  theme_void() +
+  coord_sf() +
+  theme(legend.position = "left") 
 
-basin_reef_join<-full_join(basin_nutri_all, nutri_basin) %>% 
-  rename(reef_N = total_n) %>% 
-  as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
- # filter(!is.na(basin_N) == T,
-#         basin_N>0) %>% 
-  mutate(reef_N = ifelse(is.na(reef_N) == T, 0, reef_N),
-         basin_N = ifelse(is.na(basin_N) == T, 0, basin_N),
-         ratio = reef_N/basin_N) 
+unconn_plot
 ```
 
 ```{r}
-sub_basin_reef_join<-basin_reef_join %>% 
-  filter(basin_N>0)
+ggsave(here("figures/Unconnected_nutrients_kg_km2_on_reefs_bubble_plot_log10.png"), dpi = 300)
+```-->
 
-med_basin<-median(sub_basin_reef_join$basin_N, na.rm = T)
-med_reef<-median(sub_basin_reef_join$reef_N,na.rm = T)
 
-ggplot(sub_basin_reef_join, aes(x = basin_N, y = reef_N, col = ratio)) +
-  geom_point() +
-  scale_x_log10() +
-  scale_y_log10() +
-  scale_color_viridis_c(trans = "log10", direction = -1) +
-  geom_hline(yintercept = log10(med_reef+1)) +
-  geom_vline(xintercept = log10(med_basin+1)) +
-  theme_bw() +
-  ylab("Reef N exposure (tonnes, log)") +
-  xlab("Watershed N discharge (tonnes, log)") +
-  labs(colour = "Reef exposure/Watershed discharge")
-```
-```{r}
-ggsave(here("figures/Basin_export_vs_coastal_nitrogen_log10.png"))
-```
 
-```{r}
-# Upper right - high export, high exposure
-length(which(sub_basin_reef_join$basin_N>=med_basin & sub_basin_reef_join$reef_N>=med_reef))
 
-# Upper left, low export, high exposure
-length(which(sub_basin_reef_join$basin_N<med_basin & sub_basin_reef_join$reef_N>=med_reef))
 
-# Lower right, high export, low exposure
-length(which(sub_basin_reef_join$basin_N>=med_basin & sub_basin_reef_join$reef_N<med_reef))
 
-# Lower elft, low export, low exposure
-length(which(sub_basin_reef_join$basin_N<med_basin & sub_basin_reef_join$reef_N<med_reef))
-```
 
-```{r}
-# No watershed discharge but high exposure
-
-test_reef_n<-basin_reef_join %>% 
-  filter(basin_N == 0)
-
-length(which(test_reef_n$reef_N>=med_reef))
-```
-
-```{r}
-test_basin<-fiji_basins %>% 
-  filter(MAIN_BAS %in% test_reef_n$MAIN_BAS)
-```
-
-```{r}
-tm_shape(test_basin) +
-  tm_polygons()
-```
-```{r}
-test_reef_0<-basin_reef_join %>% 
-  filter(reef_N == 0)
-
-test_reef<-fiji_basins %>% 
-  filter(MAIN_BAS %in% test_reef_0$MAIN_BAS)
-```
-
-```{r}
-tm_shape(test_reef) +
-  tm_polygons()
-```
-```{r}
-tm_shape(fiji_basins) +
-  tm_polygons()
-```
-```{r}
-high_exposure<-sub_basin_reef_join %>% 
-  filter(reef_N>=med_reef)
-
-test_high_exposure<-fiji_basins %>% 
-  filter(MAIN_BAS %in% high_exposure$MAIN_BAS)
-
-tmap_mode("view")
-
-tm_shape(test_high_exposure) +
-  tm_polygons()
-```
-
-```{r}
-high_exposure<-basin_reef_join[which(basin_reef_join$reef_N>med_reef),]
-
-exposure_df<-nutri_basin %>% 
-  filter(MAIN_BAS %in% high_exposure$MAIN_BAS)
-```
-
-```{r}
-tm_shape(exposure_df) +
-  tm_polygons("total_n")
-```
 
