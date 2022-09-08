@@ -37,15 +37,47 @@ sed_flow<-function(#shapefile of pour points
   point_1000<-st_buffer(st_as_sf(pp_sf), 500)#
   #plot(point_1000, add = T)
   #create raster of pour point
-  r2  <- raster(ncol=1, nrow=1, xmn=extent(point_1000)[1], xmx=extent(point_1000)[2], ymn=extent(point_1000)[3], ymx=extent(point_1000)[4])
+  r2  <- raster(ncol=1, nrow=1, xmn=extent(point_1000)[1], 
+                xmx=extent(point_1000)[2], ymn=extent(point_1000)[3], 
+                ymx=extent(point_1000)[4])
   crs(r2)<-crs(ocean_raster)
   r2[]<-initial.value
   
   #now sum to match rasters of different extent
   r2e<-extend(r2,r1)
+  r2e = resample(r2e, r1, "ngb")
   r3 = stack(r1,r2e)
   r3 <- calc(r3, sum)
-  #identify if points are on the coast
+  #identify if points are on the coast####
+  #use function nearestLand from package seegSDM
+  nearestLand <- function (points, raster, max_distance) {
+    nearest <- function(lis, raster) {
+      neighbours <- matrix(lis[[1]], ncol = 2)
+      point <- lis[[2]]
+      land <- !is.na(neighbours[, 2])
+      if (!any(land)) {
+        return(c(NA, NA))
+      }
+      else {
+        coords <- xyFromCell(raster, neighbours[land, 1])
+        if (nrow(coords) == 1) {
+          return(coords[1, ])
+        }
+        dists <- sqrt((coords[, 1] - point[1])^2 + (coords[, 
+                                                           2] - point[2])^2)
+        return(coords[which.min(dists), ])
+      }
+    }
+    neighbour_list <- raster::extract(raster, points, buffer = max_distance, 
+                              cellnumbers = TRUE)
+    neighbour_list <- lapply(1:nrow(points), function(i) {
+      list(neighbours = neighbour_list[[i]], point = as.numeric(points[i, 
+                                                                       ]))
+    })
+    return(t(sapply(neighbour_list, nearest, raster)))
+  }
+  
+  #check if point is in the coast####
   
   if(length(which(r3[]>0))< 1){
     snap_point<-nearestLand(coordinates(r2)[],r1,searchdistance)
@@ -58,7 +90,8 @@ sed_flow<-function(#shapefile of pour points
     crs(r2)<-crs(ocean_raster)
     r2[]<-initial.value
     r2<-extend(r2,r1)
-    r3 = stack(r1,r2)
+    r2e = resample(r2e, r1, "ngb")
+    r3 = stack(r1,r2e)
     r3 <- calc(r3, sum)
   }
   #find exact pour point position
