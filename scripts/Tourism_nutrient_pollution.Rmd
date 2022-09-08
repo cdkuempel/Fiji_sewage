@@ -265,7 +265,7 @@ I have a list of licensed hotels in Fiji in 2020. It was sent to me via e-mail f
 #  dplyr::select(-"#")
 ```
 
-This is a list of licensed hotels in Fiji in 2016. I think this more accurately matches the other data but discuss with group. The data was given to me via e-mail from Helen Sykes
+The data was given to me via e-mail from Helen Sykes
 
 ```{r}
 hotel_rooms<-read.csv("/home/kuempel/Fiji_sewage/raw_data/Tourism/Hotel_num_rooms_Fiji.csv") 

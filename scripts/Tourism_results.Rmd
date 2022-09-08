@@ -24,7 +24,7 @@ Total tourists
 
 ```{r}
 visit_arrivals<-read_csv(here("raw_data/Tourism/Fiji_Visitor_Arrivals_by_Country.csv")) %>% 
-  dplyr::select(-X5, -X6, -X7, -X8, -X9, -X10, -X11) %>% 
+  dplyr::select(Year, Month, Country, Visitor_arrivals) %>% 
   filter(!Country == "Total") %>% 
   group_by(Country) %>% 
   summarise(Total_vistors = sum(Visitor_arrivals, na.rm = T)) %>% 
