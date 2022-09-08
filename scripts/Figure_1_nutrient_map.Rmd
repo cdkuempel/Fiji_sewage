@@ -17,6 +17,7 @@ library(tmap)
 library(here)
 library(sf)
 library(tidyverse)
+library(nngeo)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
@@ -119,7 +120,11 @@ direct_nutri
 ```{r}
 connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp")) %>% 
   mutate(N_tonnes = N_final*0.001) %>% 
-  arrange(N_tonnes)
+  arrange(N_tonnes) %>% 
+  mutate(label = str_remove(STP_x, " WWTP"),
+         label = ifelse(label == "Natabua", "Lautoka",
+                        ifelse(label == "Namara TP", "Namara", label)))
+
 ```
 
 
@@ -143,6 +148,9 @@ connected_nutri_plot<-tm_shape(basins_diss) +
              title.shape = "Nitrogen\n(tonnes)", 
              title.col = "Nitrogen\n(tonnes)",
              palette = "-viridis") +
+  tm_text("label",
+          auto.placement = 1, 
+          size = 0.5) +
   tm_layout(title = "Connected") #+
   #tm_text("label", size = 1, auto.placement = 1.5, col = "darkblue")
 
@@ -252,3 +260,68 @@ all<-rbind(conn_basin2, sept_direct_tourism)
 write.csv(all, here("output_data/Results/Nutrient_results_by_basin.csv"))
 ```
 
+# Phosphorus
+
+```{r}
+septic_nutri_p<-tm_shape(septic_nutri_basin2) +
+    tm_polygons(col = "total_P_tonnes",
+                style = "cont",
+                title = "Phosphorus\n(tonnes)",
+                palette = "-viridis") +
+  tm_layout(title = "Septic") 
+
+septic_nutri_p
+```
+
+```{r}
+direct_nutri_p<-tm_shape(direct_nutri_basin2) +
+    tm_polygons(col = "total_P_tonnes",
+                style = "cont",
+                title = "Nitrogen\n(tonnes)",
+                palette = "-viridis") +
+  tm_layout(title = "Other") 
+
+direct_nutri_p
+```
+
+```{r}
+connected<-connected %>% 
+  mutate(P_tonnes = P_final*0.001)
+
+connected_nutri_plot_p<-tm_shape(basins_diss) +
+  tm_borders() +
+  tm_shape(connected)+
+  tm_bubbles(col = "P_tonnes",
+             style = "cont",
+             size = 0.5,
+             border.col = "black", 
+             border.lwd = 2, 
+             title.shape = "Nitrogen\n(tonnes)", 
+             title.col = "Nitrogen\n(tonnes)",
+             palette = "-viridis") +
+  tm_layout(title = "Connected") #+
+  #tm_text("label", size = 1, auto.placement = 1.5, col = "darkblue")
+
+connected_nutri_plot_p
+```
+
+```{r}
+tourism_nutri_p<-tm_shape(basin_tourism) +
+    tm_polygons(col = "total_P_tonnes",
+                style = "cont",
+                title = "Nitrogen\n(tonnes)",
+                palette = "-viridis") +
+  tm_layout(title = "Tourism") 
+
+tourism_nutri_p
+```
+
+```{r}
+nutri_final_all_p<-tmap_arrange(direct_nutri_p, septic_nutri_p, connected_nutri_plot_p, tourism_nutri_p, nrow = 1)
+
+nutri_final_all_p
+```
+
+```{r}
+tmap_save(nutri_final_all_p, here("figures/Supp_nutrient_all_treatment_map_phosphorus.png"), dpi = 300, width = 10, height = 5)
+```
