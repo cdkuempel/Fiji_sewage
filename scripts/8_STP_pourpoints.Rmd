@@ -74,7 +74,10 @@ rivers<-st_transform(rivers, stp_crs)
 
 
 ```{r}
-test<-readOGR("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml") %>% 
+#test<-readOGR("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml") %>% 
+#  st_as_sf()
+
+test<-readOGR(here("raw_data/Sewage_plants/Fiji Wastewater Treatment plants.kmz")) %>% 
   st_as_sf()
 
 test<-st_transform(test, stp_crs)
@@ -87,51 +90,51 @@ test2<-st_intersection(test, fiji_tik_merc)
 
 # Nadi River - potentially HYRIV_ID 50492092
 
-nadi_basin<-fiji_basins_tik %>% 
-  filter(TIKINA == "Nadi")
+#nadi_basin<-fiji_basins_tik %>% 
+#  filter(TIKINA == "Nadi")
 
-nadi_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% nadi_basin$HYBAS_ID,] 
+#nadi_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% nadi_basin$HYBAS_ID,] 
 
-nadi_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% nadi_basin$HYBAS_ID,] # There are 18 pourpoints in Nadi
+#nadi_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% nadi_basin$HYBAS_ID,] # There are 18 pourpoints in Nadi
 
-nadi_outfall<-nadi_pp %>% 
-  filter(HYRIV_ID == 50492092) # All "connected" nutrients should be discharged from here, the rest allocated across the rivers?
+#nadi_outfall<-nadi_pp %>% 
+#  filter(HYRIV_ID == 50492092) # All "connected" nutrients should be discharged from here, the rest allocated across the rivers?
   
 
-nadi_pourpoint<-st_endpoint(nadi_outfall) %>% 
-  st_sf() %>% 
-  mutate(Name = "Nadi outfall",
-         Tikina = "Nadi") %>% 
-  dplyr::select(Name, Tikina, geometry)
+#nadi_pourpoint<-st_endpoint(nadi_outfall) %>% 
+#  st_sf() %>% 
+ # mutate(Name = "Nadi outfall",
+#         Tikina = "Nadi") %>% 
+#  dplyr::select(Name, Tikina, geometry)
 
 ```
 
 ```{r}
-# Ba River 50487189?
+# Ba River 50487189 
 
-test<-fiji_tik_rivers %>% 
-  filter(TIKINA == "Ba")
-
-
-ba_basin<-fiji_basins_tik %>% 
-  filter(TIKINA == "Ba")
-
-ba_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% ba_basin$HYBAS_ID,] # 
-
-table(ba_rivers$MAIN_RIV) #50487189 is the main river in Ba
+#test<-fiji_tik_rivers %>% 
+#  filter(TIKINA == "Ba")
 
 
-ba_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% ba_basin$HYBAS_ID,] # There are 12 pourpoints in Ba
+#ba_basin<-fiji_basins_tik %>% 
+#  filter(TIKINA == "Ba")
 
-ba_outfall<-ba_rivers %>% 
-  filter(HYRIV_ID == 50487054)  # This gets lost in the fiji rivers so we take it from the larger river shapefile, still might be a bit off????
+#ba_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% ba_basin$HYBAS_ID,] # 
+
+#table(ba_rivers$MAIN_RIV) #50487189 is the main river in Ba
+
+
+#ba_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% ba_basin$HYBAS_ID,] # There are 12 pourpoints in Ba
+
+#ba_outfall<-ba_rivers %>% 
+#  filter(HYRIV_ID == 50487516)  # This gets lost in the fiji rivers so we take it from the larger river shapefile
   
 
-ba_pourpoint<-st_endpoint(ba_outfall) %>% 
-  st_sf() %>% 
-  mutate(Name = "Ba outfall",
-         Tikina = "Ba") %>% 
-  dplyr::select(Name, Tikina, geometry)
+#ba_pourpoint<-st_endpoint(ba_outfall) %>% 
+#  st_sf() %>% 
+#  mutate(Name = "Ba outfall",
+ #        Tikina = "Ba") %>% 
+ # dplyr::select(Name, Tikina, geometry)
 ```
 
 
@@ -158,27 +161,27 @@ rewa_pourpoint<-st_endpoint(rewa_outfall) %>%
 
 
 ```{r}
-# Lebasa River
-labasa_basin<-fiji_basins_tik %>% 
-  filter(TIKINA == "Labasa")
+# Labasa River 50475743
+#labasa_basin<-fiji_basins_tik %>% 
+#  filter(TIKINA == "Labasa")
 
-labasa_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% labasa_basin$HYBAS_ID,] # 
+#labasa_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% labasa_basin$HYBAS_ID,] # 
 
-table(labasa_rivers$MAIN_RIV) #50474738 is the main river in Labasa but there are several that have a lot so check
+#table(labasa_rivers$MAIN_RIV) #50474738 is the main river in Labasa but there are several that have a lot so check
 
-labasa_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% labasa_basin$HYBAS_ID,] # There are 22 pourpoints in Rewa
+#labasa_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% labasa_basin$HYBAS_ID,] # There are 22 pourpoints in Rewa
 
-labasa_outfall<-fiji_rivers %>% 
-  filter(HYRIV_ID == 50473038)  # need to think more about how to do this.
+#labasa_outfall<-fiji_rivers %>% 
+#  filter(HYRIV_ID == 50475743)  
 
 #plot(st_geometry(labasa_rivers))
 #plot(st_geometry(labasa_outfall), add = T, col = "red")
 
-labasa_pourpoint<-st_endpoint(labasa_outfall) %>% 
-  st_sf() %>%
-  mutate(Name = "Labasa Outfall", 
-         Tikina = "Labasa") %>% 
-  dplyr::select(Name, Tikina, geometry)
+#labasa_pourpoint<-st_endpoint(labasa_outfall) %>% 
+#  st_sf() %>%
+#  mutate(Name = "Labasa Outfall", 
+#         Tikina = "Labasa") %>% 
+#  dplyr::select(Name, Tikina, geometry)
 
 ```
 
@@ -208,73 +211,76 @@ sigatoka_pourpoint<-st_endpoint(sigatoka_outfall) %>%
 ```{r}
 # ACS 
 
-acs_basin<-fiji_basins_tik %>% 
-  filter(TIKINA == "Naitasiri")
+#acs_basin<-fiji_basins_tik %>% 
+#  filter(TIKINA == "Naitasiri")
 
-acs_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% acs_basin$HYBAS_ID,] # 
+#acs_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% acs_basin$HYBAS_ID,] # 
 
-table(acs_rivers$MAIN_RIV) #50497293 is the main river in Naitasiri
+#table(acs_rivers$MAIN_RIV) #50497293 is the main river in Naitasiri
 
-acs_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% acs_basin$HYBAS_ID,] # There are 21 pourpoints in Rewa
+#acs_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% acs_basin$HYBAS_ID,] # There are 21 pourpoints in Rewa
 
-acs_outfall<-acs_pp %>% 
-  filter(HYRIV_ID == 50497293) 
+#acs_outfall<-acs_pp %>% 
+#  filter(HYRIV_ID == 50497293) 
 
-acs_pourpoint<-st_endpoint(acs_outfall) %>% 
-  st_sf() %>% 
-  mutate(Name = "ACS Outfall",
-         Tikina = "Naitasiri") %>% 
-  dplyr::select(Name, Tikina, geometry)
+#acs_pourpoint<-st_endpoint(acs_outfall) %>% 
+#  st_sf() %>% 
+#  mutate(Name = "ACS Outfall",
+#         Tikina = "Naitasiri") %>% 
+#  dplyr::select(Name, Tikina, geometry)
 ```
 
 ```{r}
 # Naboro Prison
 
-naboro_basin<-fiji_basins_tik %>% 
-  filter(TIKINA == "Suva")
+#naboro_basin<-fiji_basins_tik %>% 
+#  filter(TIKINA == "Suva")
 
-naboro_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% sigatoka_basin$HYBAS_ID,] # 
+#naboro_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% sigatoka_basin$HYBAS_ID,] # 
 
-table(naboro_rivers$MAIN_RIV) #50497707 is the main river in Suva
+#table(naboro_rivers$MAIN_RIV) #50497707 is the main river in Suva
 
-naboro_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% naboro_basin$HYBAS_ID,] # There are 21 pourpoints in Rewa
+#naboro_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% naboro_basin$HYBAS_ID,] # There are 21 pourpoints in Rewa
 
-naboro_outfall<-fiji_rivers %>% 
-  filter(HYRIV_ID == 50497707) 
+#naboro_outfall<-fiji_rivers %>% 
+#  filter(HYRIV_ID == 50497707) 
 
-naboro_pourpoint<-st_endpoint(naboro_outfall) %>% 
-  st_sf() %>% 
-  mutate(Name = "Naboro Outfall",
-         Tikina = "Suva") %>% 
-  dplyr::select(Name, Tikina, geometry)
+#naboro_pourpoint<-st_endpoint(naboro_outfall) %>% 
+#  st_sf() %>% 
+#  mutate(Name = "Naboro Outfall",
+#         Tikina = "Suva") %>% 
+#  dplyr::select(Name, Tikina, geometry)
 ```
 
 ```{r}
 # Wailada
-wailada_basin<-fiji_basins_tik %>% 
-  filter(TIKINA == "Suva")
+#wailada_basin<-fiji_basins_tik %>% 
+#  filter(TIKINA == "Suva")
 
-wailada_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% sigatoka_basin$HYBAS_ID,] # 
+#wailada_rivers<-fiji_rivers[fiji_rivers$HYBAS_L12 %in% sigatoka_basin$HYBAS_ID,] # 
 
-table(wailada_rivers$MAIN_RIV) #50497707 is the main river in Suva
+#table(wailada_rivers$MAIN_RIV) #50497707 is the main river in Suva
 
-wailada_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% naboro_basin$HYBAS_ID,] # There are 21 pourpoints in Rewa
+#wailada_pp<-fiji_pourpoints[fiji_pourpoints$HYBAS_L12 %in% naboro_basin$HYBAS_ID,] # There are 21 pourpoints in Rewa
 
-wailada_outfall<-fiji_rivers %>% 
-  filter(HYRIV_ID == 50497707) 
+#wailada_outfall<-fiji_rivers %>% 
+#  filter(HYRIV_ID == 50497707) 
 
-wailada_pourpoint<-st_endpoint(wailada_outfall) %>% 
-  st_sf() %>% 
-  mutate(Name = "Wailada Outfall",
-         Tikina = "Suva") %>% 
-  dplyr::select(Name, Tikina, geometry)
+#wailada_pourpoint<-st_endpoint(wailada_outfall) %>% 
+#  st_sf() %>% 
+#  mutate(Name = "Wailada Outfall",
+#         Tikina = "Suva") %>% 
+#  dplyr::select(Name, Tikina, geometry)
 
 ```
 
 # Location of other outfalls (located from google earth)
 
 ```{r}
-stp<-readOGR("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml") %>% 
+#stp<-readOGR("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml") %>% 
+#  st_as_sf()
+
+stp<-readOGR(here("raw_data/Sewage_plants/Fiji Wastewater Treatment plants.kmz")) %>% 
   st_as_sf()
 
 stp_outfalls<-stp %>% 
@@ -284,14 +290,17 @@ stp_outfalls_merc<-st_transform(stp_outfalls, crs = st_crs(stp_crs)) %>%
   st_zm() %>% 
   dplyr::select(Name, geometry) %>% 
   mutate(Tikina = ifelse(Name == "Pacific Harbor Sewage Outfall", "Serua",
-                         ifelse(Name == "Lautoka Natabua Sewage Outfall", "Vuda", "Suva")))
+                         ifelse(Name == "Lautoka Natabua Sewage Outfall", "Vuda", 
+                                ifelse(Name == "Labasa Outfall", "Labasa", 
+                                       ifelse(Name == "Ba River Outfall", "Ba", 
+                                              ifelse(Name == "Nadi Outfall", "Nadi", "Suva"))))))
 ```
 
 # Combine all STP pourpoints
 
 ```{r}
 
-stp_all<- rbind(stp_outfalls_merc, nadi_pourpoint,  rewa_pourpoint, sigatoka_pourpoint, labasa_pourpoint, ba_pourpoint, acs_pourpoint, naboro_pourpoint, wailada_pourpoint)
+stp_all<- rbind(stp_outfalls_merc,rewa_pourpoint, sigatoka_pourpoint)#,  nadi_pourpoint,  labasa_pourpoint, ba_pourpoint)#, acs_pourpoint, naboro_pourpoint, wailada_pourpoint)
 
 stp_all_df<-stp_all %>% 
   as.data.frame() %>% 

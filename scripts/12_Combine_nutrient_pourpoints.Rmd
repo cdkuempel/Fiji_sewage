@@ -30,7 +30,7 @@ st_crs(connected)<-t_crs
 connected<-st_transform(connected, t_crs)
 
 connected<-connected %>% 
-  dplyr::select(N_final, P_final, MAIN_BAS) %>% 
+  dplyr::select(Name, N_final, P_final, MAIN_BAS) %>% 
   rename(N = N_final,
          P = P_final) %>% 
   mutate(type = "Connected")
@@ -45,7 +45,8 @@ septic<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_septic_pourpoints
   rename(N = N_trt_l,
          P = P_trt_l,
          MAIN_BAS = MAIN_BA) %>% 
-  mutate(type = "Septic") %>% 
+  mutate(type = "Septic",
+         Name = NA) %>% 
   st_transform(., t_crs)
 st_crs(septic)<-t_crs
 ```
@@ -59,7 +60,8 @@ direct<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_direct_pourpoints
   rename(N = N_trt_l,
          P = P_trt_l,
          MAIN_BAS = MAIN_BA) %>% 
-  mutate(type = "Direct") %>% 
+  mutate(type = "Direct",
+         Name = NA) %>% 
   st_transform(., t_crs)
 
 st_crs(direct)<-t_crs
@@ -73,7 +75,8 @@ coastal_septic<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_septic
   rename(N = spt_N__,
          P = spt_P__,
          MAIN_BAS = MAIN_BA) %>% 
-  mutate(type = "Coastal_septic") %>% 
+  mutate(type = "Coastal_septic", 
+         Name = NA) %>% 
   st_transform(., t_crs) 
 
 st_crs(coastal_septic)<-t_crs
@@ -85,7 +88,8 @@ coastal_direct<-st_read(here("output_data/Nutrients_at_pourpoints/Coastal_direct
   rename(N = drc_N__,
          P = drc_P__,
          MAIN_BAS = MAIN_BA) %>% 
-  mutate(type = "Coastal_direct") %>% 
+  mutate(type = "Coastal_direct",
+         Name = NA) %>% 
   st_transform(., t_crs) 
 
 st_crs(coastal_direct)<-t_crs
@@ -99,65 +103,6 @@ all<-rbind(connected, septic, direct, coastal_septic, coastal_direct)
 
 all<-st_transform(all, t_crs)
 ```
-
-
-
-
-
-
-
-
-
-```{r}
-#unconnected<-st_join(direct,septic) %>% 
-#  dplyr::select(-HYRIV_ID.y, -MAIN_BAS.y) %>% 
-#  rename(HYRIV_ID = HYRIV_ID.x,
-#         MAIN_BAS = MAIN_BAS.x) %>% 
- # mutate(un_N_leach = N_septic_leach + N_direct_leach,
-#         un_P_leach = P_septic_leach + P_direct_leach) %>% 
-#  dplyr::select(HYRIV_ID, N_septic_leach, N_direct_leach, P_septic_leach, #P_direct_leach) %>% 
-#  rename(pourpoint =HYRIV_ID) %>% 
-#  mutate(conn_N = NA,
-#         conn_P = NA,
-#         coastal_N = NA,
-#         coastal_P = NA)
-```
-
-```{r}
-#coastal<-rbind(coastal_septic, coastal_direct) #%>% 
-#  mutate(coastal_N = N_coastal_septic + N_coastal_direct,
-#         coastal_P = P_coastal_septic + P_coastal_direct) %>% 
-#  rename(pourpoint = cellindex) %>% 
-#  mutate(conn_N = NA,
-#         conn_P = NA,
-#         un_N_leach = NA,
-#         un_P_leach = NA)
-  
-```
-
-
-```{r}
-#connected_final<-connected %>% 
-#  dplyr::select(Name, N, P) %>% 
-#  rename(pourpoint = Name,
-#         conn_N = N,
-#         conn_P = P) %>% 
-#mutate(un_N_leach = NA,
-#         un_P_leach = NA,
-#         N_septic_leach = NA,
-#         N_direct_leach = NA,
-#         P_septic_leach = NA,
-#         P_direct_leach = NA)
-
-```
-
-
-```{r}
-#all_pp<-rbind(connected_final, unconnected_final)
-
-#all_pp2<-st_transform(all_pp, t_crs)
-```
-
 
 # Write data - send data to Daniel for ocean transport model
 
