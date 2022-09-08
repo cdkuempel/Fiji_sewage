@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(sf)
 library(gdalUtils)
 library(here)
+library(raster)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
@@ -35,12 +36,24 @@ sub_reef<-reef %>%
 
 st_write(sub_reef, "/home/kuempel/Fiji_sewage/raw_data/Allen_Coral_Atlas/coral_algae.shp", delete_layer = T)
 
+
+```
+
+```{r}
 sub_reef<-st_read("/home/kuempel/Fiji_sewage/raw_data/Allen_Coral_Atlas/coral_algae.shp")
 
 sub_reef<-st_make_valid(sub_reef)
 
 reef_proj<-st_transform(sub_reef, t_crs)
 
-st_write(reef_proj,here("projected_data/Allen_Coral_Atlas/coral_algae_proj.shp"), delete_layer = T)
+tik<-st_read(here("projected_data/Tikina/Fiji_tikina.shp")) %>% 
+  st_transform(., crs = t_crs)
+
+plume<-raster(here("output_data/Plumes/All_plumes_fiji.tif")) %>% 
+  projectRaster(., crs = t_crs)
+
+reef_crop<-st_crop(reef_proj, plume)
+
+st_write(reef_crop,here("projected_data/Allen_Coral_Atlas/coral_algae_crop.shp"), delete_layer = T)
 ```
 
