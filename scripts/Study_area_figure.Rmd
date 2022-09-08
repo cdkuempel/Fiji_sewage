@@ -1,0 +1,158 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-09-01"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(sf)
+library(here)
+library(tidyverse)
+library(tmap)
+library(ggsflabel)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+```
+
+
+# Tikina/watershed map
+
+```{r}
+fiji_basins<-st_read(here("projected_data/Basins/Fiji_Basins12_albers.shp")) %>% 
+  filter(!MAIN_BAS %in% c(5120082250))
+
+fiji_basins<-fiji_basins %>% 
+  dplyr::select(MAIN_BAS) %>% 
+  mutate(basin_area_m2 = as.numeric(st_area(.))) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(basin_area_m2 = sum(basin_area_m2, na.rm = T))
+```
+
+
+```{r}
+tik<-st_read(here("projected_data/Tikina/Fiji_tikina.shp")) %>% 
+  st_transform(., crs = t_crs) %>% 
+  mutate(area = as.numeric(st_area(.))) %>% 
+  group_by(TIKINA, ADM1_NAME) %>%
+  summarise(area = sum(area, na.rm = T)) %>% 
+  mutate(Area = case_when(TIKINA == "Suva" ~ "Suva",
+                          TIKINA == "Nadi" ~ "Nadi",
+                          ADM1_NAME == "Northern  Division" ~ "Northern Division",
+                          TIKINA == "Baravi" ~ "Coral Coast",
+                          TIKINA == "Nasigatoka" ~ "Coral Coast",
+                          TIKINA == "Cuvu" ~ "Coral Coast",
+                          TIKINA == "Malomalo" ~ "Coral Coast",
+                          TIKINA == "Vuda" ~ "Lautoka",
+                          TIKINA == "Malolo" ~ "Mamanuca"),
+         Area = ifelse(is.na(Area) == T, "Others", as.character(Area)))
+
+#crop_tik<-st_crop(tik, fiji_basins) %>% 
+  
+crop_tik<-tik %>% 
+  mutate(Island = ifelse(ADM1_NAME %in% c("Central Division", "Western Division"), "Viti Levu",
+                                          ifelse(ADM1_NAME == "Northern  Division", "Vanua Levu", NA)))
+
+labels<-c("Nadi", "Ba", "Vuda", "Rewa", "Suva")
+
+# Also label Laucala Bay and Nadi Bay, Rewa River
+# Viti Levu and Vanua Levu
+
+crop_tik2<-crop_tik %>% 
+  filter(ADM1_NAME != "Eastern Division") %>% 
+  group_by(TIKINA, Island) %>% 
+  summarise(diss = sum(area, na.rm = T)) %>% 
+  mutate(label = ifelse(TIKINA %in% labels, TIKINA, NA)) 
+  
+```
+
+```{r}
+stp_shp<-st_read(here("raw_data/Sewage_plants/Fiji Waste Water Catchment.shp"))
+```
+
+
+WWTP
+
+```{r}
+wwtp<-st_read("/home/kuempel/Waste_water_data/Fiji/Sewage_plants/Fiji Wastewater Treatment plants.kml")
+
+wwtp2<-wwtp %>% 
+  mutate(long = st_coordinates(.)[,1],
+         lat = st_coordinates(.)[,2]) %>% 
+  st_transform(.,t_crs) %>% 
+  filter(!str_detect(Name, 'Outfall'),
+         str_detect(Name, "Plant"),
+         !str_detect(Name, "ACS"),
+         !str_detect(Name, "Naboro"),
+         !str_detect(Name, "Wailada")) %>% 
+  mutate(wwtp_label = str_remove(Name, " Sewage Treatment Plant"),
+         wwtp_label = str_remove(wwtp_label, " Sewage Plant"),
+         wwtp_label = ifelse(wwtp_label == "PWD", "Kinoya", 
+                             ifelse(wwtp_label == "Lautoka Natabua", "Lautoka",
+                                    ifelse(wwtp_label == "Labasa Namara", "Namara",
+                                           ifelse(wwtp_label == "Nausori Nadali", "Nadali", 
+                                                  ifelse(wwtp_label == "Pacific Harbor", "Deuba", wwtp_label))))))
+```
+
+
+
+Plot
+
+```{r}
+mytheme <- theme(text = element_text(family = 'Avenir')
+                 ,panel.grid.major = element_line(color = '#cccccc' 
+                                                  ,linetype = 'dashed'
+                                                  ,size = .3
+                                                  )
+                 ,panel.background = element_rect(fill = 'aliceblue')
+                 ,plot.title = element_text(size = 32)
+                 ,plot.subtitle = element_text(size = 14)
+                 ,axis.title = element_blank()
+                 ,axis.text = element_text(size = 10))
+
+```
+
+
+```{r}
+
+#threshold<-
+
+#geom_text(aes(x = xpos, y = ypos, label = ifelse(percent>threshold,percent(percent, accuracy = 0.1),"")), hjust = "outward", nudge_x  = 0.2, size = 7.5) + 
+#    geom_text_repel(aes(x = xpos, y = ypos, label = ifelse(percent<threshold, percent(percent, accuracy = 0.1), "")), nudge_x  = 0.2, size = 7.5)+ 
+
+    
+ggplot(crop_tik2) +
+  geom_sf(aes(fill = Island), lwd = 0.1) +
+    geom_sf(data = fiji_basins, aes(alpha = 0.9)) +
+  geom_sf_label_repel(aes(label = ifelse(label == "Ba", NA, label)),
+                        force = 400, 
+                      force_pull = 2,
+                      nudge_x = 0, 
+                      nudge_y = -2, 
+                      max.overlaps = 10,
+                      size = 3.5,
+                      min.segment.length = 1) +
+  geom_sf_text_repel(data = wwtp2, aes(label = wwtp_label),
+                      size = 3.5) +
+                    # nudge_y = 3)+#,
+                    # nudge_x = 4) +
+  geom_sf(data = wwtp2) +
+  coord_sf(xlim = c(-400000.2, 55042.03), ylim = c(-300593.7 , 147701.7 ), expand = FALSE) +
+  mytheme +
+  scale_fill_manual(values = c("#71639c", "#4d919f")) +
+  labs(fill = "") +
+  theme(legend.position = "bottom") +
+  scale_alpha(guide = 'none')
+```
+
+```{r}
+ggsave(here("figures/Fig1_Study_Area.png"),dpi = 300, width = 5, height = 5)
+```
+
+
+

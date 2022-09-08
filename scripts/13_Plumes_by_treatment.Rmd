@@ -1,0 +1,140 @@
+---
+title: "Plumes_by_treatment"
+author: "Caitie"
+date: "2022-08-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+gc()
+
+library(tidyverse)
+library(dplyr)
+library(rgdal)
+library(raster)
+library(gdistance)
+library(reshape2)
+library(sf)
+library(here)
+#library(seegSDM)#discontinued
+
+source(here("scripts/function_plume_diffusion_model_2.R"))
+
+```
+
+
+
+
+#READ OCEANS RASTER
+
+```{r}
+ocean_raster<-raster(here("raw_data/Plumes/ocean_raster_1km.tif"))
+```
+
+
+#read other plumes
+
+```{r}
+plu<-raster(here("raw_data/Plumes/ero_dep_tiff.tif"))
+```
+
+
+#READ POUR POINTS SHAPEFILE
+
+```{r}
+pour_points<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp")) %>% 
+  st_transform(., st_crs(plu)) %>% 
+  mutate(group = ifelse(type == "Connected", 1, 2))
+```
+
+
+```{r}
+pour_points<-spTransform(as(pour_points,"Spatial"), crs(plu))
+ocean_raster <- projectRaster(ocean_raster, crs = plu)
+
+pour_points<-st_as_sf(pour_points)
+```
+
+#This code works well for a relatively small area.
+#If you want to work at a global scale, you need to divide them
+#by groups using something like this:
+
+#convert to spatial object
+
+```{r}
+pour_points<-as(pour_points,"Spatial")
+```
+
+
+#create list by group
+#point_list<-split(pour_points,as.character(pour_points@data$group))
+
+```{r}
+point_list<-split(pour_points,as.character(pour_points$group))
+```
+
+
+
+#The you can apply the function to each group in the
+#list
+
+#I used a loop because I wanted to keep track of some
+#pour points. It is fairly quickly but you can also paralellize.
+
+re[[2]] is not working properly
+
+```{r}
+pb <- txtProgressBar(min = 0, max = length(point_list), style = 3)
+
+
+for(p in 1:length(point_list)){
+  setTxtProgressBar(pb, p)
+  focus_points<-point_list[[p]]
+  type<-unique(focus_points$type)
+  if(length(type)>1){
+    type <- "Unconnected"
+  }
+tb <- txtProgressBar(min = 0, max = nrow(focus_points), style = 3)
+re<-list()#to save your rasters
+for (i in 1:nrow(focus_points)){#only the first 10 pour points
+  setTxtProgressBar(tb, i) 
+  re[[i]]<-  sed_flow(  
+    pp_sf=focus_points[i,],#list of pour points (each element of the list should be a point)
+    initial.value = focus_points[i,"N"][[1]],#value with nitrogen export value
+    ocean_raster,
+    buffer_value=60000,#buffer from pour point (in meters)-change value to make nutrients go farther 
+    resolution_raster=1,#in km
+    searchdistance=9000,#search distance to snap points to the coast,
+    decay_percent=0.005,#5 % of sediment decay
+    remaining_left=0.0005#stop when 99.5% of the sediment has spread from the coast
+  )
+  gc()
+}
+
+newextent<-extent(Reduce(extend,re))
+
+re = lapply(re, function(r){extend(r,newextent)})
+
+#set all rasters to same extent
+for (i in 1:length(re)){
+  r<-re[[i]]
+  r<-extend(r,newextent)
+  r[is.na(r[])] <- 0 
+  re[[i]]<-r
+  #print(i)
+}
+
+all_re<-Reduce("+", re)
+
+writeRaster(all_re, here(paste0("output_data/Plumes/", type,"_plume.tif")), overwrite = TRUE)
+
+rm(re)
+}
+
+```
+
+

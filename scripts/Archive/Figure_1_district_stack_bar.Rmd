@@ -1,0 +1,153 @@
+---
+title: "Untitled"
+author: "Caitie"
+date: "2022-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Packages
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(here)
+library(tmap)
+
+t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+
+```
+
+
+# Data
+```{r}
+dat<-read.csv(here("output_data/Results/Nutrient_results_by_basin.csv"))
+```
+
+# Basins
+
+```{r}
+fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
+  filter(!MAIN_BAS %in% c(5120082250)) 
+
+fiji_basins<-st_transform(fiji_basins12, t_crs) %>% 
+  dplyr::select(MAIN_BAS, area_km2) %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total_area = sum(area_km2, na.rm = T))
+```
+
+```{r}
+test<-st_read(here("raw_data/Tikina/fji_polbnda_adm3_tikina.shp")) %>% 
+  st_transform(., t_crs) 
+
+test2<-st_intersection(test, fiji_basins) 
+
+test3<-test2%>% 
+  mutate(div_basin_area = as.numeric(st_area(.))) %>% 
+  group_by(ADM1_NAME, MAIN_BAS) %>% 
+  summarise(div_basin_area = sum(div_basin_area,na.rm = T)) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry)
+
+fiji_basin_div<-full_join(fiji_basins, test3, by = "MAIN_BAS") %>% 
+  mutate(prop = (div_basin_area*1e-6)/total_area) %>% 
+  group_by(MAIN_BAS) %>% 
+    filter(prop == max(prop))
+```
+
+# Fiji Divisions
+
+```{r}
+div<-test %>% 
+  mutate(area = as.numeric(st_area(.))) %>% 
+  group_by(ADM1_NAME) %>% 
+  summarise(total_area = sum(area, na.rm = T)) %>% 
+  st_crop(., fiji_basins) %>% 
+  mutate(name2 = str_replace(ADM1_NAME, " Division", ""))
+```
+
+```{r}
+div_map<-tm_shape(div) +
+  tm_polygons("name2",
+              title = "Division",
+              palette = "plasma",
+              legend.show = F) + 
+  tm_layout(frame = FALSE) +
+   tm_text("name2")
+
+div_map
+```
+```{r}
+tmap_save(div_map,here("figures/Fiji_divisions_map.png"), dpi = 300, width = 10, height = 5)
+```
+
+
+
+
+
+# Stacked bar chart by basin
+
+```{r}
+n_dat<-dat %>% 
+  filter(Nutrient == "total_N_tonnes") %>% 
+  full_join(fiji_basin_div, by = "MAIN_BAS") %>% 
+  filter(!is.na(MAIN_BAS) == T) %>% 
+  mutate(label = stringr::str_remove(MAIN_BAS, "512008"))
+```
+
+```{r}
+test<-n_dat %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(total = sum(Effluent, na.rm = T)) %>% 
+  filter(total != 0)
+```
+
+```{r}
+n_dat<-n_dat %>% 
+  filter(MAIN_BAS %in% test$MAIN_BAS) %>% 
+  mutate(type2 = ifelse(type == "direct", "Other", str_to_title(type)))
+```
+
+```{r}
+test_n<-n_dat %>% 
+  group_by(ADM1_NAME, type) %>% 
+  summarise(total = sum(Effluent, na.rm = T))
+```
+
+
+```{r}
+ggplot(n_dat, aes(x = as.factor(label), y = Effluent, fill = type2)) +
+  geom_bar(position = "stack", stat = "identity") +
+  theme_minimal() +
+  facet_wrap(~ADM1_NAME, scales = "free") +
+  #theme(legend.position="none") +
+  ylab("Nutrient load") +
+  scale_fill_viridis_d() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Main Basin") +
+  labs(fill = "Source") +
+  theme(legend.position = "bottom")
+```
+```{r}
+ggsave(here("figures/Treatment_nutrients_bar_chart_by_basin_division.png"), width = 10, height = 7, dpi = 300)
+```
+
+```{r}
+ggplot(test_n, aes(x = ADM1_NAME, y = total, fill = type)) +
+  geom_bar(position = "stack", stat = "identity") +
+  theme_minimal() +
+  #facet_wrap(~ADM1_NAME, scales = "free") +
+  #theme(legend.position="none") +
+  ylab("Nutrient load") +
+  scale_fill_viridis_d() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  xlab("Main Basin") +
+  labs(fill = "Source") +
+  theme(legend.position = "bottom")
+```
+```{r}
+ggsave(here("figures/Treatment_nutrients_bar_chart_by_division.png"), width = 10, height = 7, dpi = 300)
+```
