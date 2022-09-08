@@ -27,14 +27,14 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 ```{r}
 pop_check<-read_csv(here("output_data/Sewage_plants/STP_population_check.csv")) %>% 
   filter(!is.na(estimated) == T) %>% 
-  mutate(label = ifelse(STP == "Deuba WWTP", "Pacific Harbor",
+  mutate(label = ifelse(STP == "Deuba WWTP", "Deuba",
                         ifelse(STP == "Kinoya WWTP", "Kinoya",
-                               ifelse(STP == "Nadali WWTP", "Rewa",
-                                      ifelse(STP == "Namara TP", "Labasa",
-                                             ifelse(STP == "Natabua WWTP", "Natabua",
-                                                    ifelse(STP == "Navakai WWTP", "Nadi",
-                                                           ifelse(STP == "Olosara", "Sigatoka",
-                                                                  ifelse(STP == "Votua WWTP", "Ba", NA)))))))))
+                               ifelse(STP == "Nadali WWTP", "Nadali",
+                                      ifelse(STP == "Namara TP", "Namara",
+                                             ifelse(STP == "Natabua WWTP", "Lautoka",
+                                                    ifelse(STP == "Navakai WWTP", "Navaki",
+                                                           ifelse(STP == "Olosara", "Olosara",
+                                                                  ifelse(STP == "Votua WWTP", "Votua", NA)))))))))
 ```
 
 ```{r}
@@ -73,13 +73,14 @@ estimated<-wwtp_compare %>%
   rename(type = type2) 
 
 
-wwtp_compare2<-full_join(actual, estimated)
+wwtp_compare2<-full_join(actual, estimated) %>% 
+  mutate(label = ifelse(STP.x == "Ba", "Votua", STP.x))
 ```
 
 
 
 ```{r}
-ggplot(wwtp_compare2, aes(x = Estimated, y = Actual, col = STP.x)) +
+ggplot(wwtp_compare2, aes(x = Estimated, y = Actual, col = label)) +
   geom_point(size = 2) +
   facet_wrap(~type, scales = "free") +
   ylab("Estimated (tonnes)") +
