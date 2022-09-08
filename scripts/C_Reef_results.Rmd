@@ -59,111 +59,75 @@ nrow(sub_reef_nutri)/nrow(reef_nutri)
 nrow(top_90)/nrow(sub_reef_nutri)
 ```
 
-# Fiji Tikinas
+# WWTP
 
 ```{r}
-tik<-st_read(here("projected_data/Tikina/Fiji_tikina.shp")) %>% 
-   st_transform(., t_crs)
+connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp"))
 
-tik_df<-tik %>% 
+```
+```{r}
+basin_dat<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp")) %>% 
   as.data.frame() %>% 
-  dplyr::select(TIKINA, ADM1_NAME)
-```
+  dplyr::select(-geometry) 
 
-
-
-# Nearest Tikina to each coral reef
-
-```{r}
-test<-sub_reef_nutri %>% 
-  mutate(area_m2 = as.numeric(st_area(.)))
-
-cent<-st_centroid(test)
-
-st_write(cent,here("output_data/Nutrients_at_reefs/Reef_nutrient_centroids.shp"), delete_layer = TRUE)
-
-reef_tik_dist<-st_nn(cent, tik, k = 1, parallel = 10, returnDist = T) %>% 
-   unlist() %>% 
-   as.data.frame()
-
-reef_tik_dist2<-reef_tik_dist %>% 
-  tibble::rownames_to_column(., "Type")
-
-pos<-reef_tik_dist2 %>% 
-  filter(str_detect(Type, "nn")) %>% 
-   rename(tik_val = ".")
-
-test2<-tik_df[pos$tik_val,] %>% 
-   as.data.frame() 
-
-dist<-reef_tik_dist2 %>% 
-  filter(str_detect(Type, "dist")) %>% 
-   rename(distance = ".") %>% 
-   dplyr::select(distance)
-
-done<-cbind(cent, test2) %>% 
-   cbind(., dist)
-
-nutri_by_tikina <- done %>% 
-   as.data.frame() %>% 
-   dplyr::select(-geometry) %>% 
-   group_by(TIKINA) %>% 
-   summarise(total_n = sum(n_reefs_tonnes, na.rm = T)) %>% 
-  full_join(., tik, by = c("TIKINA"))
-
-st_write(done, here("output_data/Nutrients_at_reefs/Reef_nutrients_nearest_Tikina.shp"), delete_layer = T)
-st_write(nutri_by_tikina, here("output_data/Nutrients_at_reefs/Tikina_reef_nutrients.shp"), delete_layer = T)
-```
-
-
-# Nearest Main basin to each coral reef
-
-```{r}
-basin<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>% 
-  st_transform(., t_crs) %>% 
+basin_n<- basin_dat %>% 
   group_by(MAIN_BAS) %>% 
-  summarise(total_area = sum(area_m2, na.rm = T))
+  summarise(basin_N = sum(N, na.rm = T))
 
-basin_df<-basin %>% 
-  as.data.frame() %>% 
-  ungroup() %>% 
-  dplyr::select(-geometry) %>% 
-  dplyr::select(MAIN_BAS)
+prop_conn<-basin_dat %>% 
+  group_by(MAIN_BAS, type) %>% 
+  summarise(basin_N_type = sum(N, na.rm = T)) %>% 
+  mutate(basin_N_type2 =ifelse(is.na(basin_N_type) == T, 0, as.numeric(basin_N_type))) %>% 
+  pivot_wider(., names_from = type, values_from = basin_N_type2) %>% 
+  replace(is.na(.), 0) %>% 
+  mutate(total = sum(Coastal_direct + Coastal_septic + Direct + Septic + Connected),
+         prop_unconn = sum(Coastal_direct + Coastal_septic + Direct + Septic)/total)
 ```
+```{r}
+basin_plumes_dat<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp")) 
+
+basin_plumes<-basin_plumes_dat %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) %>% 
+  pivot_longer(., cols = c("X512008155":"X512008225"), names_to = "MAIN_BAS", values_to = "reef_N") %>% 
+  group_by(MAIN_BAS) %>% 
+  summarise(reef_N = sum(reef_N, na.rm = T)) %>% 
+  mutate(MAIN_BAS = str_replace(MAIN_BAS, "X", ""),
+         MAIN_BAS = str_pad(MAIN_BAS,side="right", width = 10, pad="0"),
+         MAIN_BAS = as.numeric(MAIN_BAS))
+```
+
 
 
 ```{r}
-
-reef_bas_dist<-st_nn(cent, basin, k = 1, parallel = 10, returnDist = T) %>% 
-   unlist() %>% 
-   as.data.frame()
-
-reef_bas_dist2<-reef_bas_dist %>% 
-  tibble::rownames_to_column(., "Type")
-
-bas_pos<-reef_bas_dist2 %>% 
-  filter(str_detect(Type, "nn")) %>% 
-   rename(bas_val = ".")
-
-bas_test2<-basin_df[bas_pos$bas_val,] %>% 
-   as.data.frame()  %>% 
-  rename(MAIN_BAS = ".")
-
-bas_dist<-reef_bas_dist2 %>% 
-  filter(str_detect(Type, "dist")) %>% 
-   rename(distance = ".") %>% 
-   dplyr::select(distance)
-
-bas_done<-cbind(cent, bas_test2) %>% 
-   cbind(., bas_dist)
-
-nutri_by_basin <- bas_done %>% 
-   as.data.frame() %>% 
-   dplyr::select(-geometry) %>% 
-   group_by(MAIN_BAS) %>% 
-   summarise(total_n = sum(n_reefs_tonnes, na.rm = T)) %>% 
-  full_join(., basin)
-
-st_write(bas_done, here("output_data/Nutrients_at_reefs/Reef_nutrients_nearest_basin.shp"), delete_layer = T)
-st_write(nutri_by_basin, here("output_data/Nutrients_at_reefs/Basin_reef_nutrients.shp"), delete_layer = T)
+basin_reef_join<-full_join(basin_n, basin_plumes) %>% 
+ # filter(!is.na(basin_N) == T,
+#         basin_N>0) %>% 
+  mutate(reef_N = ifelse(is.na(reef_N) == T, 0, reef_N),
+         basin_N = ifelse(is.na(basin_N) == T, 0, basin_N),
+         ratio = reef_N/basin_N) 
 ```
+
+```{r}
+basin_connected<-basin_reef_join %>% 
+  filter(MAIN_BAS %in% connected$MAIN_BAS) %>% 
+  full_join(., connected)
+```
+
+```{r}
+cor.test(basin_connected$basin_N, basin_connected$reef_N, method = "pearson")
+```
+
+```{r}
+n_basins_reef<-st_read(here("output_data/Nutrients_at_reefs/Number_watersheds_contributing_reef_nutrients.shp")) %>% 
+  as.data.frame() %>% 
+  dplyr::select(-geometry) 
+
+n_basins_reef<-n_basins_reef%>% 
+  dplyr::select(id, n_reefs)
+
+mean(n_basins_reef$n_reefs)
+
+length(which(n_basins_reef$n_reefs>1))/nrow(n_basins_reef)
+```
+
