@@ -18,6 +18,7 @@ library(tabularaster)
 #devtools::install_github("isciences/exactextractr")
 library(exactextractr)
 library(tmap)
+library(fasterize)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 ```
@@ -30,17 +31,16 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 
 ```{r}
 reefs<-st_read(here("projected_data/Allen_Coral_Atlas/coral_algae_fiji_crop.shp"))
-```
 
-```{r}
-#wcmc<-st_read(here("raw_data/UNEP_WCMC_corals/WCMC008_CoralReef2018_Py_v4_1.shp"))
 
-#wcmc2<-st_make_valid(wcmc)
+#reefs_diss<-reefs %>% 
+#  mutate(diss = 1) %>% 
+#  group_by(class) %>% 
+#  summarise(diss = sum(diss))
 
-#test<-st_wrap_dateline(wcmc2)
+#st_write(reefs_diss, here("projected_data/Allen_Coral_Atlas/coral_algae_fiji_dissolve.shp"))
 
-#wcmc_proj<-wcmc2 %>% 
-#  st_transform(., t_crs)
+#reefs_diss<-st_read(here("projected_data/Allen_Coral_Atlas/coral_algae_fiji_dissolve.shp"))
 ```
 
 
@@ -49,54 +49,26 @@ reefs<-st_read(here("projected_data/Allen_Coral_Atlas/coral_algae_fiji_crop.shp"
 These currently don't have the wave/current information added, just decay function
 
 ```{r}
-#plume_files<-list.files(here("output_data/Plumes"), full.names = T)
-
-#r1<-raster(plume_files[1])
-
-#r1p<-projectRaster(r1, crs = t_crs)
-#r2p<-projectRaster(r2, crs = t_crs)
-#r3p<-projectRaster(r3, crs = t_crs)
-
-#all_rp<-merge(r1p,r2p,r3p)
-
-#merge_rasters(
-#  plume_files,
-#  output_raster = here("output_data/Plumes/Merged_plumes.tif"),
-#  options = character(0),
-#  overwrite = FALSE,
-#  force_fallback = FALSE
-#)
-
-#r<-raster(here("output_data/Plumes/.tif"))
 r<-raster(here("output_data/Plumes/All_plumes_fiji.tif"))
-rp<-projectRaster(r, crs = t_crs)
+
+reef_proj<-reefs %>% 
+  st_transform(., st_crs(r))
 ```
 
 ```{r}
-#wcmc_buff<-st_buffer(wcmc_proj, byid=TRUE, dist=0)
+reef_ras<-fasterize(reef_proj, r)
 
-#wcmc_crop<-st_crop(wcmc_buff, rp) 
+reef_ras[is.na(reef_ras) == T]<-0
 
-#wcmc_crop<-wcmc_crop %>% 
-#  mutate(area_m2 = as.numeric(st_area(.)))
+reef_n<-reef_ras*r
 
-#wcmc_crop<-wcmc_crop %>% 
-#  dplyr::select(LAYER_NAME, NAME, LOC_DEF)
-```
-
-```{r}
-cent<-st_centroid(reefs)
-```
-
-```{r}
-#tm_shape(cent) +
-#  tm_dots()
+writeRaster(reef_n, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.tif"), overwrite = T)
 ```
 
 # Intersect coral reefs with plumes and calculates the amount of nutrients
 
 ```{r}
-n_reefs<-exactextractr::exact_extract(rp, reefs, fun = "sum")
+n_reefs<-exactextractr::exact_extract(r, reef_proj, fun = "sum")
 
 n_df<-as.data.frame(n_reefs)
 
@@ -109,26 +81,32 @@ st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.shp"), del
 
 ```{r}
 conn<-raster(here("output_data/Plumes/Connected_plume.tif"))
-conn<-projectRaster(conn, crs = t_crs)
+conn<-resample(conn, reef_ras)
 
 unconn<-raster(here("output_data/Plumes/Unconnected_plume.tif"))
-unconn<-projectRaster(unconn, crs = t_crs)
+unconn<-resample(unconn, reef_ras)
 
 ```
 
+```{r}
+conn_reef_n<-reef_ras*conn
+unconn_reef_n<-reef_ras*unconn
 
+writeRaster(conn_reef_n, here("output_data/Nutrients_at_reefs/Connected_nitrogen_on_reefs.tif"), overwrite = T)
+writeRaster(unconn_reef_n, here("output_data/Nutrients_at_reefs/Unconnected_nitrogen_on_reefs.tif"), overwrite = T)
+```
 
 ```{r}
-conn_n_reefs<-exactextractr::exact_extract(conn, reefs, fun = "sum")
-unconn_n_nreefs<-exactextractr::exact_extract(unconn, reefs, fun = "sum")
+conn_n_reefs<-exactextractr::exact_extract(conn, reef_proj, fun = "sum")
+unconn_n_reefs<-exactextractr::exact_extract(unconn, reef_proj, fun = "sum")
 
 conn_n_df<-as.data.frame(conn_n_reefs)
-unconn_n_df<-as.data.frame(unconn_n_nreefs)
+unconn_n_df<-as.data.frame(unconn_n_reefs)
 
-done<-cbind(reefs, conn_n_df) %>% 
+conn_done<-cbind(reef_proj, n_df, conn_n_df) %>% 
   cbind(unconn_n_df)
 
-st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_treatment.shp"), delete_layer = TRUE)
+st_write(conn_done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_treatment.shp"), delete_layer = TRUE)
 ```
 
 # Nutrients on reefs by basin
@@ -139,21 +117,19 @@ ras_files<-list.files(here("output_data/Plumes"), pattern = "5", full.names = T)
 
 all_re<-lapply(ras_files, raster)
 
-n_basins<-data.frame(id = 1:nrow(reefs))
+n_basins<-data.frame(matrix(NA, nrow = nrow(reef_proj), ncol = length(all_re)))
 
-n_basins<-list()
-
-n_basins<-data.frame(matrix(NA, nrow = nrow(reefs), ncol = length(all_re)))
+# Check 5120081650
 
 for(i in 1:length(all_re)){
   print(i)
   plume<-all_re[[i]]
-  plume<-projectRaster(plume, crs = t_crs)
-  
+  plume<-resample(plume, reef_ras)
   name<-names(plume)
   name2<-str_extract(name, "[0-9]+")
   
-  bas_n_reefs<-exactextractr::exact_extract(plume, reefs, fun = "sum")
+  bas_n_reefs<-exactextractr::exact_extract(plume, reef_proj, fun = "sum")
+  bas_n_reefs<-plume*reef_ras
   
   bas_n_df<-as.data.frame(bas_n_reefs)
   
@@ -165,7 +141,7 @@ for(i in 1:length(all_re)){
 
 basin_join<-cbind(reefs, n_basins)
 
-st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp"))
+st_write(basin_join, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp"), delete_layer = TRUE)
 ```
 
 
