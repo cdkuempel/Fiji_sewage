@@ -60,6 +60,8 @@ reef_ras<-fasterize(reef_proj, r)
 
 reef_ras[is.na(reef_ras) == T]<-0
 
+r<-resample(r, reef_ras, method = "bilinear")
+
 reef_n<-reef_ras*r
 
 writeRaster(reef_n, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.tif"), overwrite = T)
@@ -81,11 +83,18 @@ st_write(done, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.shp"), del
 
 ```{r}
 conn<-raster(here("output_data/Plumes/Connected_plume.tif"))
-conn<-resample(conn, reef_ras)
+conn<-resample(conn, r, method = "bilinear")
 
 unconn<-raster(here("output_data/Plumes/Unconnected_plume.tif"))
-unconn<-resample(unconn, reef_ras)
+unconn<-resample(unconn, r, method = "bilinear")
 
+```
+
+Check - conn+unconn should equal r
+```{r}
+cellStats(conn, "sum")
+cellStats(unconn, "sum")
+cellStats(r, "sum")
 ```
 
 ```{r}
@@ -124,7 +133,7 @@ n_basins<-data.frame(matrix(NA, nrow = nrow(reef_proj), ncol = length(all_re)))
 for(i in 1:length(all_re)){
   print(i)
   plume<-all_re[[i]]
-  plume<-resample(plume, reef_ras)
+  plume<-resample(plume,r, method = "bilinear")
   name<-names(plume)
   name2<-str_extract(name, "[0-9]+")
   
@@ -139,7 +148,7 @@ for(i in 1:length(all_re)){
 
 }
 
-basin_join<-cbind(reefs, n_basins)
+basin_join<-cbind(reef_proj, n_basins)
 
 st_write(basin_join, here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp"), delete_layer = TRUE)
 ```
