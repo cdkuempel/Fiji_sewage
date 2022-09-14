@@ -41,12 +41,12 @@ fiji_basins12<-st_read(here("projected_data/Basins/Fiji_basins12.shp")) %>%
 
 ## Total
 
-
-
 ```{r}
 reef_nutri_treat<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_treatment.shp")) %>% 
   st_transform(., t_crs) %>% 
-  mutate(area_m2 = as.numeric(st_area(.)))
+  mutate(area_m2 = as.numeric(st_area(.)),
+         check_total = cnn_n_r + uncnn__,
+         test = round(n_reefs, 5) == round(check_total, 5))
 
 cent_treat<-st_centroid(reef_nutri_treat) 
 
@@ -74,16 +74,18 @@ total_points<-st_centroid(total_sf) %>%
 
 title_exp <- expression("Kg/km"^2)
 
+breaks<-c(1,10,100,500,1000)
+
 p2<-ggplot(data = fiji_basins12) +
   geom_sf(fill = "grey") +
   #geom_sf_text(aes(label = TIKINA), colour = "black") +
   #geom_label_repel(aes(label = TIKINA, geometry = geometry),
   #  stat = "sf_coordinates") +
-  geom_sf(data = total_points, aes(size = Nitrogen_on_reefs+1, color = Nitrogen_on_reefs+1)) +
+  geom_sf(data = total_points, aes(size = Nitrogen_on_reefs, color = Nitrogen_on_reefs)) +
   #geom_point(data = treat_plot_dat2, aes(x = X, y = Y, size = layer+1, color = layer+1), shape = 20, stroke = F) +
-  scale_size_continuous(name = title_exp, trans ="log10") +
+  scale_size_continuous(name = title_exp, breaks = breaks) +
  # scale_alpha_continuous(name="Nitrogen (tonnes)") +
-  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  scale_color_viridis(name=title_exp, direction = -1, breaks= breaks) +
   guides(colour = guide_legend()) +
   theme_void() +
   coord_sf() +
@@ -91,7 +93,7 @@ p2<-ggplot(data = fiji_basins12) +
 p2
 ```
 ```{r}
-ggsave(here("figures/Total_nutrients_kg_km2_on_reefs_bubble_plot_log10_ras.png"), dpi = 300, width = 5, height = 5)
+ggsave(here("figures/Total_nutrients_kg_km2_on_reefs_bubble_plot_ras.png"), dpi = 300, width = 5, height = 5)
 ```
 
 ```{r}
@@ -101,24 +103,25 @@ conn_points<-st_centroid(conn_sf) %>%
   arrange(Connected_nitrogen_on_reefs ) %>% 
   filter(Connected_nitrogen_on_reefs >0)
 
+breaks2<-c(1,10,100,500,900)
+
 p3<-ggplot(data = fiji_basins12) +
   geom_sf(fill = "grey") +
   #geom_sf_text(aes(label = TIKINA), colour = "black") +
   #geom_label_repel(aes(label = TIKINA, geometry = geometry),
   #  stat = "sf_coordinates") +
-  geom_sf(data = conn_points, aes(size = Connected_nitrogen_on_reefs +1, color = Connected_nitrogen_on_reefs+1)) +
+  geom_sf(data = conn_points, aes(size = Connected_nitrogen_on_reefs, color = Connected_nitrogen_on_reefs)) +
   #geom_point(data = treat_plot_dat2, aes(x = X, y = Y, size = layer+1, color = layer+1), shape = 20, stroke = F) +
-  scale_size_continuous(name = title_exp, trans ="log10") +
+  scale_size_continuous(name = title_exp, breaks = breaks2) +
  # scale_alpha_continuous(name="Nitrogen (tonnes)") +
-  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  scale_color_viridis(name=title_exp, direction = -1, breaks = breaks2) +
   guides(colour = guide_legend()) +
   theme_void() +
-  coord_sf() +
   theme(legend.position = "left") 
 p3
 ```
 ```{r}
-ggsave(here("figures/Connected_nutrients_kg_km2_on_reefs_bubble_plot_log10_ras.png"), dpi = 300, width = 5, height = 5)
+ggsave(here("figures/Connected_nutrients_kg_km2_on_reefs_bubble_plot_ras.png"), dpi = 300, width = 5, height = 5)
 ```
 
 ```{r}
@@ -128,16 +131,18 @@ unconn_points<-st_centroid(unconn_sf) %>%
   arrange(Unconnected_nitrogen_on_reefs ) %>% 
   filter(Unconnected_nitrogen_on_reefs >0)
 
+breaks3<-c(1,10,50, 80)
+
 p4<-ggplot(data = fiji_basins12) +
   geom_sf(fill = "grey") +
   #geom_sf_text(aes(label = TIKINA), colour = "black") +
   #geom_label_repel(aes(label = TIKINA, geometry = geometry),
   #  stat = "sf_coordinates") +
-  geom_sf(data = unconn_points, aes(size = Unconnected_nitrogen_on_reefs +1, color = Unconnected_nitrogen_on_reefs+1)) +
+  geom_sf(data = unconn_points, aes(size = Unconnected_nitrogen_on_reefs, color = Unconnected_nitrogen_on_reefs)) +
   #geom_point(data = treat_plot_dat2, aes(x = X, y = Y, size = layer+1, color = layer+1), shape = 20, stroke = F) +
-  scale_size_continuous(name = title_exp, trans ="log10") +
+  scale_size_continuous(name = title_exp, breaks = breaks3) +
  # scale_alpha_continuous(name="Nitrogen (tonnes)") +
-  scale_color_viridis(name=title_exp, direction = -1, trans = "log10") +
+  scale_color_viridis(name=title_exp, direction = -1, breaks = breaks3) +
   guides(colour = guide_legend()) +
   theme_void() +
   coord_sf() +
@@ -145,7 +150,7 @@ p4<-ggplot(data = fiji_basins12) +
 p4
 ```
 ```{r}
-ggsave(here("figures/Unconnected_nutrients_kg_km2_on_reefs_bubble_plot_log10_ras.png"), dpi = 300, width = 5, height = 5)
+ggsave(here("figures/Unconnected_nutrients_kg_km2_on_reefs_bubble_plot_ras.png"), dpi = 300, width = 5, height = 5)
 ```
 # Using point polygons - DON"T USE THIS ANYMORE
 
