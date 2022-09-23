@@ -441,7 +441,6 @@ st_write(tikina_hotels, here("output_data/Tourism/Final_hotel_room_map.shp"), ap
 
 # Hotels per area
 
-********Double check********
 ```{r}
 hotels_per_area<-tikina_hotels %>% 
   group_by(Area.1) %>% 
@@ -488,76 +487,8 @@ test<-prop_hotels_tik %>%
   filter(Area.1 == "Others")
 ```
 
-# Rooms per area - don't use this anymore, distribute on hotels
-```{r}
-#rooms_area<-tikina_hotels %>% 
-#  filter(!is.na(Total_rooms)) %>% 
-#  group_by(Area.1) %>% 
-#  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
 
-#rooms_basin<-tikina_hotels %>% 
-#  filter(!is.na(Total_rooms)) %>% 
-#  group_by(MAIN_BAS) %>% 
-#  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
 
-#rooms_tikina<-tikina_hotels %>% 
-#  group_by(TIKINA) %>% 
-#  summarise(Total_rooms = sum(Total_rooms, na.rm = T)) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
-
-#persons_area<-tikina_hotels %>% 
-#  filter(!is.na(Num_persons)) %>% 
-#  group_by(Area.1) %>% 
-#  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
-
-#persons_basins<-tikina_hotels %>% 
-#  filter(!is.na(Num_persons)) %>% 
-#  group_by(MAIN_BAS) %>% 
-#  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
-
-#persons_tikina<-tikina_hotels %>% 
-#  filter(!is.na(Num_persons)) %>% 
-#  group_by(TIKINA) %>% 
-#  summarise(Total_persons = sum(Num_persons, na.rm = T)) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry)
-
-```
-
-NB: Some hotels do not have room/person information which creates a discrepency in proportions between hotels/rooms/people.
-
-```{r}
-#prop_occupancy_tik<- tikina_hotels %>% 
-#  group_by(TIKINA, Area.1, MAIN_BAS) %>% 
-#  summarise(Tik_rooms = sum(Total_rooms, na.rm = T),
-  #          Tik_visitors = sum(Num_persons, na.rm = T)) %>% 
-  #left_join(., rooms_area, by = "Area.1") %>% 
-  #left_join(., persons_area, by = "Area.1") %>% 
-#  mutate(Prop_rooms = Tik_rooms/Total_rooms,
-#            Prop_visitors = Tik_visitors/Total_persons) %>% 
-#  left_join(., prop_hotels_tik, by = c("TIKINA", "MAIN_BAS", #"Area.1")) %>% 
-#  as.data.frame() %>% 
-#  dplyr::select(-geometry) 
-
-#write.csv(prop_occupancy_tik, #here("tables/Hotels_rooms_visitors_Fiji.csv"))
-
-```
-
-Test correlations
-```{r}
-#cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_visitors, method = "pearson") # highly positively correlated
-#cor.test(prop_occupancy_tik$Prop_rooms, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
-#cor.test(prop_occupancy_tik$Prop_visitors, prop_occupancy_tik$Prop_hotels, method = "pearson") # highly positively correlated
-```
 # Distribute nutrients based on number of hotels within each Tikina/Watershed/Tourist Area
 
 ```{r}
@@ -635,6 +566,12 @@ hotel_treatment_df<-hotel_treatment %>%
 write.csv(hotel_treatment_df, here("output_data/Tourism/Hotels_treatment_type.csv"))
 
 
+```
+
+```{r}
+length(which(hotel_treatment_df$Total_rooms>=100))
+length(which(hotel_treatment_df$Total_rooms>=30 & hotel_treatment_df$Total_rooms<100))
+length(which(hotel_treatment_df$Total_rooms<30))
 ```
 
 
