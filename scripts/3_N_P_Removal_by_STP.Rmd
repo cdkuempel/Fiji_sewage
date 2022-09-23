@@ -18,7 +18,7 @@ Advice from WAF is to remove values where the Final effluent > Raw values.
 
 # Flow data 
 
-Flow data is in ML which I assume means million litres
+Flow data is in ML = million litres
 
 ```{r}
 wwtp_flow<-read.csv(here("raw_data/Sewage_plants/WWTP_flow_data.csv")) %>% 
