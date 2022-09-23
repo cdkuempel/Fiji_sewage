@@ -15,9 +15,18 @@ library(here)
 library(tidyverse)
 library(tmap)
 library(ggsflabel)
+library(raster)
+library(exactextractr)
 
 t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
 
+```
+# Population
+
+```{r}
+pop_ras_proj<-raster(here("projected_data/Population/FJI_Pop_Grid_proj.tif"))
+
+pop_ras_proj<-setMinMax(pop_ras_proj)
 ```
 
 
@@ -98,10 +107,17 @@ wwtp2<-wwtp %>%
                                            ifelse(wwtp_label == "Nausori Nadali", "Nadali", 
                                                   ifelse(wwtp_label == "Pacific Harbor", "Deuba", wwtp_label))))))
 ```
+# Population per basin
+
+```{r}
+pop_basin<-extract(pop_ras_proj, fiji_basins, fun = sum, na.rm = TRUE)
+
+pop_basin2<-cbind(fiji_basins, pop_basin)
+```
 
 
 
-Plot
+# Plot
 
 ```{r}
 mytheme <- theme(text = element_text(family = 'Avenir')
@@ -127,16 +143,18 @@ mytheme <- theme(text = element_text(family = 'Avenir')
 
     
 ggplot(crop_tik2) +
-  geom_sf(aes(fill = Island), lwd = 0.1) +
-    geom_sf(data = fiji_basins, aes(alpha = 0.9)) +
-  geom_sf_label_repel(aes(label = ifelse(label == "Ba", NA, label)),
-                        force = 400, 
-                      force_pull = 2,
-                      nudge_x = 0, 
-                      nudge_y = -2, 
-                      max.overlaps = 10,
-                      size = 3.5,
-                      min.segment.length = 1) +
+  geom_sf(lwd = 0.1) +
+    geom_sf(data = pop_basin2, aes(fill = pop_basin/10000)) +
+ # geom_sf_label(aes(label = ifelse(label == "Ba", NA, label, position=position_jitter(width=1,height=1)))) +
+ # geom_sf_label_repel(aes(label = ifelse(label == "Ba", NA, label)),
+#                      force = 1,
+#                      size = 3) +
+                    #  force_pull = 2,
+                    #  nudge_x = 0, 
+                    #  nudge_y = -2, 
+                    #  max.overlaps = 10,
+                     # size = 3.5,
+                      #min.segment.length = 1) +
   geom_sf_text_repel(data = wwtp2, aes(label = wwtp_label),
                       size = 3.5) +
                     # nudge_y = 3)+#,
@@ -144,9 +162,10 @@ ggplot(crop_tik2) +
   geom_sf(data = wwtp2) +
   coord_sf(xlim = c(-400000.2, 55042.03), ylim = c(-300593.7 , 147701.7 ), expand = FALSE) +
   mytheme +
-  scale_fill_manual(values = c("#71639c", "#4d919f")) +
-  labs(fill = "") +
-  theme(legend.position = "bottom") +
+ # scale_fill_manual(values = c("#71639c", "#4d919f")) +
+  scale_fill_viridis_c(direction = -1) +
+  labs(fill = "Population (10,000)") +
+ # theme(legend.position = "bottom") +
   scale_alpha(guide = 'none')
 ```
 
