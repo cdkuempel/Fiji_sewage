@@ -11,10 +11,11 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(lubridate)
 library(stringr)
+library(here)
 ```
 
 This code calculates the average N and P removal from each sewage treatment plant in Fiji based on data from Fiji Water Authority.
-Advice from WAF is to remove values where the Final effluent > Raw values.
+Advice from WAF is to remove values where the Final effluent > Raw values.However, we kept them as it is common for systems to overload.
 
 # Flow data 
 
@@ -24,20 +25,53 @@ Flow data is in ML = million litres
 wwtp_flow<-read.csv(here("raw_data/Sewage_plants/WWTP_flow_data.csv")) %>% 
   filter(!WWTP == "") %>% 
   pivot_longer(cols = X2010:X2019, names_to = "year", values_to = "flow_ML") %>% 
-  mutate(flow_ML = as.numeric(flow_ML)) %>% 
-  group_by(WWTP) %>% 
-  summarise(avg_flow_ML = mean(flow_ML)) %>% 
-  mutate(avg_flow_L = avg_flow_ML*1000000) 
+  mutate(flow_ML = as.numeric(flow_ML),
+         year = as.numeric(str_remove(year, "X"))) %>% 
+  mutate(flow_L = flow_ML*1000000) %>% 
+  filter(year>=2015) %>% 
+  mutate(WWTP2 = ifelse(WWTP == "Votua", "Ba",
+                        ifelse(WWTP == "Natabua", "Lautoka",
+                               WWTP)))
 ```
 
-
-# Kinoya
-
-These estimates are in mg/L. Convert to tonnes
+# Loop to calculate nutrients
 
 ```{r}
-kinoya<-read.csv(here("raw_data/Sewage_plants/Kinoya_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
+stp_files<-list.files(here("raw_data/Sewage_plants/"), pattern = "Effluent", full.names = T)
+
+stp_files<-stp_files[-c(1,6,11)]
+```
+
+WWTP values are in mg/L. Convert to tonnes by multiplying by flow rate and multiplying by 1e-9
+
+```{r}
+
+all<-c()
+all_year<-c()
+all_samples<-c()
+
+for(i in 1:length(stp_files)){
+  stp<-read.csv(stp_files[[i]])
+  name<-unique(stp$STP)
+  
+  print(name)
+  
+  if(name =="Lautoka"){
+     stp<- stp %>% 
+      mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
+         year = lubridate::year(Date), 
+         month = lubridate::month(Date), 
+         day = lubridate::day(Date),
+         Location = as.character(Location)) %>% 
+  filter(year <2020,
+         grepl('Raw|Maturation', Location)) %>% 
+  mutate_if(is.character, str_trim) %>% 
+  mutate(Location = ifelse(Location %in% c("Maturation Pond [2]", "Maturation Pond 2","Maturation Pond"," Maturation Pond [2","Maturation 2", "Maturation", "Maturation [Final Effluent]", " Maturation Pond"), "Final Effluent", as.character(Location))) %>% 
+  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates))) %>% 
+      filter(Location %in% c("Raw Sewage", "Raw Sewerage", "Final Effluent"))
+  }else if(name %in% c("Namara", "Olosara", "Ba")){
+    stp<- stp %>% 
+      mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
          year = lubridate::year(Date), 
          month = lubridate::month(Date), 
          day = lubridate::day(Date),
@@ -46,1026 +80,167 @@ kinoya<-read.csv(here("raw_data/Sewage_plants/Kinoya_Effluent.csv"), na.string =
                               ifelse(year == 17, 2017,
                                      ifelse(year == 18, 2018,
                                             ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
+                                                   ifelse(year ==20, 2020,NA)))))),
+         Location = as.character(Location)) %>% 
+  filter(year <2020,
+         grepl('Raw|Maturation', Location)) %>% 
+  mutate_if(is.character, str_trim) %>% 
+  mutate(Location = ifelse(Location %in% c("Maturation Pond [2]", "Maturation Pond 2","Maturation Pond"," Maturation Pond [2","Maturation 2", "Maturation", "Maturation [Final Effluent]", " Maturation Pond"), "Final Effluent", as.character(Location))) %>% 
+  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates))) %>% 
+      filter(Location %in% c("Raw Sewage", "Raw Sewerage", "Final Effluent"))
+    }else if(name == "Deuba"){
+     stp<-stp %>% 
+     mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
+         year = lubridate::year(Date), 
+         month = lubridate::month(Date), 
+         day = lubridate::day(Date),
          Location = as.character(Location),
          Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
   filter(year <2020,
-         grepl('Raw|Final', Location)) %>% 
+         grepl('Raw|Final|Decant', Location)) %>% 
   mutate_if(is.character, str_trim) %>% 
   mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
+    
+     }else{
+       stp<-stp %>% 
+     mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
+         year = lubridate::year(Date), 
+         month = lubridate::month(Date), 
+         day = lubridate::day(Date),
+         year = ifelse(year == 15, 2015,
+                       ifelse(year == 16, 2016,
+                              ifelse(year == 17, 2017,
+                                     ifelse(year == 18, 2018,
+                                            ifelse(year == 19, 2019,
+                                                   ifelse(year ==20, 2020,NA)))))),
+         Location = as.character(Location),
+         Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
+  filter(year <2020,
+         grepl('Raw|Final|Decant', Location)) %>% 
+  mutate_if(is.character, str_trim) %>% 
+  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
+  }
+  
+  stp_flow<-wwtp_flow %>% 
+  filter(WWTP2 == name)
 
-```
-
-```{r}
-
-kinoya_flow<-wwtp_flow %>% 
-  filter(WWTP == "Kinoya")
-
-kinoya_N<-kinoya %>% 
+  stp_N<-stp %>% 
   dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
+  mutate(Total.Nitrogen = ifelse(Total.Nitrogen == "N/A", NA, as.numeric(Total.Nitrogen)),
+         Location =ifelse(Location %in% c("Raw Sewage", "Raw Sewerage"), "Raw", "Final")) %>% 
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(Final_mg = Final * kinoya_flow$avg_flow_L,
-         Raw_mg = Raw * kinoya_flow$avg_flow_L,
+  mutate(Final2 = ifelse(Final>Raw, Raw, Final)) %>% #Deal with values when Final>Raw
+  full_join(., stp_flow, by = "year") %>% 
+  mutate(Final_mg = Final2 * flow_L,
+         Raw_mg = Raw * flow_L,
          Final_tonnes = Final_mg * 1e-9,
          Raw_tonnes = Raw_mg * 1e-9,
-         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes)
+         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes) 
+  
+  stp_N<-stp_N %>% 
+      filter(!is.na(Raw) == T,
+         !is.na(Final) == T) # Remove pairs that don't have both values
 
-kinoya_N_month<- kinoya_N %>% 
+stp_N_month<- stp_N %>% 
   ungroup() %>% 
   group_by(STP, year, month) %>% 
   summarise(Raw_month = mean(Raw_tonnes, na.rm = T),
-            Final_month = mean(Final_tonnes, na.rm = T))%>% 
+            Final_month = mean(Final_tonnes, na.rm = T)) %>% 
   mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
 
-kinoya_N_year<-kinoya_N_month %>% 
+samples_N<-stp_N %>% 
+  filter(!is.na(Raw_tonnes) == T) %>% 
+   group_by(STP, year) %>% 
+  summarise(n_samples = length(unique(Date))) %>% 
+     mutate(type = "N")
+
+stp_N_year<-stp_N_month %>% 
   ungroup() %>% 
   group_by(STP, year) %>% 
   summarise(Raw_year = mean(Raw_month, na.rm = T),
             Final_year = mean(Final_month, na.rm = T)) %>% 
   mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
 
-kinoya_N_rm<-kinoya_N_year %>% 
+stp_N_rm<-stp_N_year %>% 
   group_by(STP) %>% 
   summarise(Raw = mean(Raw_year, na.rm = T),
             Final = mean(Final_year, na.rm = T)) %>% 
   mutate(rm_eff = (Raw-Final)/Raw,
          type = "N")
-```
 
-```{r}
-kinoya_P<-kinoya %>% 
+ stp_P<-stp %>% 
   dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
   mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
+         Location =ifelse(Location %in% c("Raw Sewage", "Raw Sewerage"), "Raw", "Final")) %>% 
   group_by(STP, Date, year, month, day, Location) %>% 
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
  # filter(!Final>Raw) %>% 
-  mutate(Final_mg = Final * kinoya_flow$avg_flow_L,
-         Raw_mg = Raw * kinoya_flow$avg_flow_L,
+ mutate(Final2 = ifelse(Final>Raw, Raw, Final)) %>% #Deal with values when Final>Raw
+  full_join(., stp_flow, by = "year") %>% 
+  mutate(Final_mg = Final2 * flow_L,
+         Raw_mg = Raw * flow_L,
          Final_tonnes = Final_mg * 1e-9,
          Raw_tonnes = Raw_mg * 1e-9,
-         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes)
+         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes) 
+ 
+   stp_P<-stp_P %>% 
+      filter(!is.na(Raw) == T,
+         !is.na(Final) == T) # Remove pairs that don't have both values
+   
+   samples_P<-stp_P %>% 
+  filter(!is.na(Raw_tonnes) == T) %>% 
+   group_by(STP, year) %>% 
+  summarise(n_samples = length(unique(Date))) %>% 
+     mutate(type = "P")
 
-kinoya_P_month<- kinoya_P %>% 
+all_samples<-rbind(all_samples, samples_N) %>% 
+  rbind(., samples_P)
+ 
+stp_P_month<- stp_P %>% 
   ungroup() %>% 
   group_by(STP, year, month) %>% 
   summarise(Raw_month = mean(Raw, na.rm = T),
             Final_month = mean(Final, na.rm = T)) %>% 
   mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
 
-kinoya_P_year<-kinoya_P_month %>% 
+stp_P_year<-stp_P_month %>% 
   ungroup() %>% 
   group_by(STP, year) %>% 
   summarise(Raw_year = mean(Raw_month, na.rm = T),
             Final_year = mean(Final_month, na.rm = T)) %>% 
   mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
 
-kinoya_P_rm<-kinoya_P_year %>% 
+stp_P_rm<-stp_P_year %>% 
   group_by(STP) %>% 
   summarise(Raw = mean(Raw_year, na.rm = T),
             Final = mean(Final_year, na.rm = T)) %>% 
   mutate(rm_eff = (Raw-Final)/Raw,
          type = "P")
-```
 
-# Ba
+all<-rbind(all, stp_N_rm) %>% 
+  rbind(., stp_P_rm)
 
-```{r}
-ba<-read.csv(here("raw_data/Sewage_plants/Ba_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location),
-         Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
-  filter(year <2020,
-         grepl('Raw|Maturation', Location)) %>% 
-  mutate_if(is.character, str_trim) %>% 
-  mutate(Location = ifelse(Location %in% c("Maturation Pond",  "Maturation", "Maturation [Final Effluent]"), "Final Effluent", as.character(Location))) %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-ba_N<-ba %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-ba_N_month<- ba_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-ba_N_year<-ba_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-ba_N_rm<-ba_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-ba_P<-ba %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-ba_P_month<- ba_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T))%>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-ba_P_year<-ba_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-ba_P_rm<-ba_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Lautoka
-
-```{r}
-lautoka<-read.csv(here("raw_data/Sewage_plants/Lautoka_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location)) %>% 
-  filter(year <2020,
-         grepl('Raw|Maturation', Location)) %>% 
-  mutate_if(is.character, str_trim) %>% 
-  mutate(Location = ifelse(Location %in% c("Maturation Pond [1]","Maturation Pond [2]", "Maturation Pond 1","Maturation Pond 2","Maturation Pond","Maturation Pond [2","Maturation 1","Maturation 2"), "Final Effluent", as.character(Location))) %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-lautoka_N<-lautoka %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-lautoka_N_month<- lautoka_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-lautoka_N_year<-lautoka_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-lautoka_N_rm<-lautoka_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-lautoka_P<-lautoka %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-lautoka_P_month<- lautoka_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-lautoka_P_year<-lautoka_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T))  %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-lautoka_P_rm<-lautoka_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Naboro
-
-```{r}
-naboro<-read.csv(here("raw_data/Sewage_plants/Naboro_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location)) %>% 
-  filter(year <2020,
-         grepl('Raw|Final', Location)) %>% 
-  mutate_if(is.character, str_trim)  %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-naboro_N<-naboro %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-naboro_N_month<- naboro_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-naboro_N_year<-naboro_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-naboro_N_rm<-naboro_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-naboro_P<-naboro %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-naboro_P_month<- naboro_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-naboro_P_year<-naboro_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T))  %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-naboro_P_rm<-naboro_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Nadali
-
-```{r}
-nadali<-read.csv(here("raw_data/Sewage_plants/Nadali_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location)) %>% 
-  filter(year <2020,
-         grepl('Raw|Final', Location)) %>% 
-  mutate_if(is.character, str_trim)  %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-nadali_N<-nadali %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-nadali_N_month<- nadali_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-nadali_N_year<-nadali_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-nadali_N_rm<-nadali_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-nadali_P<-nadali %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>%
- # filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-nadali_P_month<- nadali_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-nadali_P_year<-nadali_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-nadali_P_rm<-nadali_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Namara
-
-```{r}
-namara<-read.csv(here("raw_data/Sewage_plants/Namara_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location),
-         Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
-  filter(year <2020,
-         grepl('Raw|Maturation', Location)) %>% 
-  mutate_if(is.character, str_trim) %>% 
-  mutate(Location = ifelse(Location %in% c("Maturation Pond",  "Maturation"), "Final Effluent", as.character(Location))) %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-namara_N<-namara %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-namara_N_month<- namara_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-namara_N_year<-namara_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-namara_N_rm<-namara_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-namara_P<-namara %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-namara_P_month<- namara_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-namara_P_year<-namara_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-namara_P_rm<-namara_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Navakai
-
-```{r}
-navakai<-read.csv(here("raw_data/Sewage_plants/Navakai_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location)) %>% 
-  filter(year <2020,
-         grepl('Raw|Decant|Final', Location)) %>% 
-  mutate_if(is.character, str_trim) %>%
-  mutate(Location = ifelse(Location %in% c("Decant",  "Decant", "Final Decand"), "Final Effluent", as.character("Raw Sewage"))) %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-navakai_N<-navakai %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
- # filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-navakai_N_month<- navakai_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-navakai_N_year<-navakai_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-navakai_N_rm<-navakai_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-navakai_P<-navakai %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-navakai_P_month<- navakai_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-navakai_P_year<-navakai_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T))%>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-navakai_P_rm<-navakai_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Olosara
-
-```{r}
-olosara<-read.csv(here("raw_data/Sewage_plants/Olosara_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location),
-         Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
-  filter(year <2020,
-         grepl('Raw|Maturation', Location)) %>% 
-  mutate_if(is.character, str_trim) %>% 
-  mutate(Location = ifelse(Location %in% c("Maturation Pond",  "Maturation"), "Final Effluent", as.character(Location))) %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-olosara_N<-olosara %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-olosara_N_month<- olosara_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-olosara_N_year<-olosara_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-olosara_N_rm<-olosara_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-olosara_P<-olosara %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-olosara_P_month<- olosara_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-olosara_P_year<-olosara_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T))  %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-olosara_P_rm<-olosara_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Wailada
-
-```{r}
-wailada<-read.csv(here("raw_data/Sewage_plants/Wailada_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location),
-         Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
-  filter(year <2020,
-         grepl('Raw|Final', Location)) %>% 
-  mutate_if(is.character, str_trim)  %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-wailada_N<-wailada %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>%
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-wailada_N_month<- wailada_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-wailada_N_year<-wailada_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-wailada_N_rm<-wailada_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-wailada_P<-wailada %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
- # filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-wailada_P_month<- wailada_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-wailada_P_year<-wailada_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-wailada_P_rm<-wailada_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# Deuba
-
-```{r}
-deuba<-read.csv(here("raw_data/Sewage_plants/Deuba_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location),
-         Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
-  filter(year <2020,
-         grepl('Raw|Final', Location)) %>% 
-  mutate_if(is.character, str_trim)  %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-deuba_N<-deuba %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-deuba_N_month<- deuba_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-deuba_N_year<-deuba_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-deuba_N_rm<-deuba_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-deuba_P<-deuba %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-deuba_P_month<- deuba_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-deuba_P_year<-deuba_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-deuba_P_rm<-deuba_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-# ACS
-
-```{r}
-acs<-read.csv(here("raw_data/Sewage_plants/ACS_Effluent.csv"), na.string = "N/A") %>% 
-  mutate(Date = as.Date(Date, tryFormat = "%d/%m/%Y"),
-         year = lubridate::year(Date), 
-         month = lubridate::month(Date), 
-         day = lubridate::day(Date),
-         year = ifelse(year == 15, 2015,
-                       ifelse(year == 16, 2016,
-                              ifelse(year == 17, 2017,
-                                     ifelse(year == 18, 2018,
-                                            ifelse(year == 19, 2019,
-                                                   ifelse(year ==20, 2020,
-                                                          ifelse(year == 2001, 2015,as.numeric(year)))))))),
-         Location = as.character(Location)) %>% 
-  filter(year <2020,
-         grepl('Raw|Final', Location)) %>% 
-  mutate_if(is.character, str_trim) %>% 
-  filter(!Location == "Raw Effluent") %>% 
-  mutate(Total.Nitrogen = as.numeric(as.character(Total.Nitrogen))) %>% 
-  mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-```
-
-
-```{r}
-acs_N<-acs %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Nitrogen) %>% 
-  mutate(Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
- # filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-acs_N_month<- acs_N %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-acs_N_year<-acs_N_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-acs_N_rm<-acs_N_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "N")
-```
-```{r}
-acs_P<-acs %>% 
-  dplyr::select(STP, Date, year, month, day,Location, Total.Reactive.Phosphates) %>% 
-  mutate(Location = ifelse(Location %in% c("Final Effluent 1","Final Effluent -2","Final Effluent [1]","Final Effluent [2]"), "Final Effluent", as.character(Location)),
-         Location =ifelse(Location == "Raw Sewage", "Raw", "Final")) %>% 
-  group_by(STP, Date, year, month, day, Location) %>% 
-  summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
-  pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
-  #filter(!Final>Raw) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw)
-
-acs_P_month<- acs_P %>% 
-  ungroup() %>% 
-  group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
-
-acs_P_year<-acs_P_month %>% 
-  ungroup() %>% 
-  group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T))  %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
-
-acs_P_rm<-acs_P_year %>% 
-  group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw-Final)/Raw,
-         type = "P")
-```
-
-# Combine
-
-```{r}
-all<-rbind(kinoya_N_rm,
-           kinoya_P_rm,
-           ba_N_rm,
-           ba_P_rm,
-           lautoka_N_rm,
-           lautoka_P_rm,
-           naboro_N_rm,
-           naboro_P_rm,
-           nadali_N_rm,
-           nadali_P_rm,
-           namara_N_rm,
-           namara_P_rm,
-           navakai_N_rm,
-           navakai_P_rm,
-           olosara_N_rm,
-           olosara_P_rm,
-           wailada_N_rm,
-           wailada_P_rm,
-           deuba_N_rm,
-           deuba_P_rm,
-           acs_N_rm,
-           acs_P_rm)
+all_year<-rbind(all_year, stp_N_year) %>% 
+  rbind(., stp_P_year)
+}
 ```
 
 ```{r}
-all_year<-rbind(kinoya_N_year,
-           kinoya_P_year,
-           ba_N_year,
-           ba_P_year,
-           lautoka_N_year,
-           lautoka_P_year,
-           naboro_N_year,
-           naboro_P_year,
-           nadali_N_year,
-           nadali_P_year,
-           namara_N_year,
-           namara_P_year,
-           navakai_N_year,
-           navakai_P_year,
-           olosara_N_year,
-           olosara_P_year,
-           wailada_N_year,
-           wailada_P_year,
-           deuba_N_year,
-           deuba_P_year,
-           acs_N_year,
-           acs_P_year)
-
 all_year2<-all_year %>% 
   group_by(STP) %>% 
   summarise(avg_raw_year = mean(Raw_year),
             avg_final_year = mean(Final_year),
             avg_rm_eff = mean(rm_eff))
+
+all_samples2 <-all_samples %>% 
+  group_by(STP, type) %>% 
+  summarise(total_samples = sum(n_samples, na.rm = T))
+
+write.csv(all, here("output_data/Sewage_plants/Nutrient_removal_STP_allvalues.csv"))
+
 ```
 
-```{r}
-write.csv(all, here("output_data/Sewage_plants/Nutrient_removal_STP_allvalues.csv"))
-```
+
