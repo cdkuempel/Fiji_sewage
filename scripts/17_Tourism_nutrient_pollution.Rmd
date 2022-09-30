@@ -433,7 +433,8 @@ terrace<-terrace[1,]
 tikina_hotels<-tikina_hotels %>% 
   filter(!Name == "The Terrace Apartments")
 
-tikina_hotels<-rbind(tikina_hotels, terrace)
+tikina_hotels<-rbind(tikina_hotels, terrace) %>% 
+  filter(!Name == "Naisoso Villas Resort") #empty geometry
 
 st_write(tikina_hotels, here("output_data/Tourism/Final_hotel_room_map.shp"), append = F)
 
@@ -569,10 +570,11 @@ write.csv(hotel_treatment_df, here("output_data/Tourism/Hotels_treatment_type.cs
 ```
 
 ```{r}
-length(which(hotel_treatment_df$Total_rooms>=100))
-length(which(hotel_treatment_df$Total_rooms>=30 & hotel_treatment_df$Total_rooms<100))
-length(which(hotel_treatment_df$Total_rooms<30))
+length(which(hotel_treatment_df$Total_rooms2>=100))
+length(which(hotel_treatment_df$Total_rooms2>=30 & hotel_treatment_df$Total_rooms2<100))
+length(which(hotel_treatment_df$Total_rooms2<30))
 ```
+
 
 
 # Determine treatment levels within each Tikina/watershed
@@ -582,20 +584,20 @@ tikina_bas_treat <- hotel_treatment %>%
   dplyr::select(-geometry.x, -geometry.y) %>% 
   as.data.frame() %>% 
   count(TIKINA, MAIN_BAS, Area.1, treatment_level, sort = TRUE) %>% 
-  rename(tik_bas_n = n) %>% 
+  rename(tik_bas_n = n) %>% #hotels within each tikina/main basin
   filter(!is.na(MAIN_BAS) == T) # There is one hotel that is not within a basin
 
 all_treat <- hotel_treatment %>% 
   dplyr::select(-geometry.x, -geometry.y) %>% 
   as.data.frame() %>% 
   count(Area.1, sort = TRUE) %>% 
-  rename(total_n = n)
+  rename(total_n = n) # total hotels within each area
 
 prop_treatment<-full_join(tikina_bas_treat, all_treat) %>% 
-  mutate(prop_treat = tik_bas_n/total_n)
+  mutate(prop_treat = tik_bas_n/total_n) # proportion of hotels in each tikina of each treatment type
 
 
-test<-prop_treatment %>% 
+test2<-prop_treatment %>% 
   filter(Area.1 == "Coral Coast")
 
 ```
@@ -615,26 +617,35 @@ Check to make sure all is working correctly
 
 ```{r}
 test_nutrients <- tik_tourist_nutrients_df %>% 
-  filter(Area == "Coral Coast")
+  filter(Area == "Nadi")
 
 sum(test_nutrients$Tourist_N, na.rm = T)
 
 test_treat<- tourist_treated %>% 
-  filter(Area.1 == "Coral Coast")
+  filter(Area.1 == "Nadi")
 
 sum(test_treat$Type_N, na.rm = T)
 ```
 
+Based on these scenarios removals were estimated at 20% for N and 30% for P for overloaded and 100% of N and P for optimally treating systems (Withers et al. 2014). For pit-latrines and permeable tank back-ends (other treatment types) the soil was estimated to be efficient in absorbing nutrients as these back-ends are normally set-back from any surface water to avoid collapse; N removal estimated from 80-98% and P removal at 99% (Nyenje et al. 2013). 
 
 ```{r}
+septic_treat_n<- 0.8 #80% of nutrients remaining or 20% removal rate
+primary_treat_n<- 0.5 #50% N removal
+secondary_treat_n<- 0 #100% removal
+  
+septic_treat_p<- 0.7 #70% of nutrients remaining or 30% removal rate
+primary_treat_p<- 0.45 #55% P removal
+secondary_treat_p<- 0 #100% removal
+
 
 tourist_treated_final<-tourist_treated %>% 
-  mutate(Treated_N = ifelse(treatment_level == "Primary", Type_N * prop_treat * 0.8,
-                          ifelse(treatment_level == "Secondary", Type_N * prop_treat * 0.6,
-                              ifelse(treatment_level == "Septic", Type_N * prop_treat * 0.8, NA))),
-       Treated_P = ifelse(treatment_level == "Primary", Type_P * prop_treat * 0.8,
-                          ifelse(treatment_level == "Secondary", Type_P * prop_treat * 0.55,
-                              ifelse(treatment_level == "Septic", Type_P * prop_treat * 0.8, NA)))) %>% 
+  mutate(Treated_N = ifelse(treatment_level == "Primary", Type_N * primary_treat_n,
+                          ifelse(treatment_level == "Secondary", Type_N * secondary_treat_n,
+                              ifelse(treatment_level == "Septic", Type_N * septic_treat_n, NA))),
+       Treated_P = ifelse(treatment_level == "Primary", Type_P * primary_treat_p,
+                          ifelse(treatment_level == "Secondary", Type_P * secondary_treat_p,
+                              ifelse(treatment_level == "Septic", Type_P * septic_treat_p, NA)))) %>% 
   dplyr::select(TIKINA, MAIN_BAS, Area.1, treatment_level, prop_treat, Tourist_N, Tourist_P, Type_N, Type_P, Treated_N, Treated_P) 
 
 test<-tourist_treated_final %>% 
@@ -647,12 +658,6 @@ tourist_treated_df<-tourist_treated_final %>%
 write.csv(tourist_treated_df, here("output_data/Tourism/Treated_tourist_nutrients.csv"))
 ```
 
-
-CHECK AND MAKE SURE IT'S OK THAT THESE ARE EXCLUDED
-```{r}
-test_final<-tourist_treated_final %>% 
-  filter(is.na(Treated_N) == T)
-```
 
 
 
