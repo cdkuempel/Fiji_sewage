@@ -21,7 +21,8 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 
 ```{r}
 reef_nutri<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs.shp")) %>% 
-  st_transform(., t_crs)
+  st_transform(., t_crs) %>% 
+  mutate(area_m2 = as.numeric(st_area(.)))
 ```
 
 
@@ -48,7 +49,7 @@ sub_reef_nutri<- sub_reef_nutri %>%
 
 ```{r}
 sum(reef_nutri_df$n_reefs_tonnes,na.rm = T)
-sum(reef_nutri_df$n_reefs_tonnes,na.rm = T)/385.9
+sum(reef_nutri_df$n_reefs_tonnes,na.rm = T)/365.7
 ```
 
 ```{r}
@@ -57,6 +58,18 @@ nrow(sub_reef_nutri)/nrow(reef_nutri)
 
 ```{r}
 nrow(top_90)/nrow(sub_reef_nutri)
+```
+
+# Reef area affected 
+
+```{r}
+sum(sub_reef_nutri$area_m2, na.rm = T)*1e-6
+
+sum(reef_nutri$area_m2, na.rm = T)*1e-6
+```
+
+```{r}
+(sum(sub_reef_nutri$area_m2, na.rm = T)*1e-6)/(sum(reef_nutri$area_m2, na.rm = T)*1e-6)
 ```
 
 # WWTP
@@ -106,6 +119,10 @@ basin_reef_join<-full_join(basin_n, basin_plumes) %>%
   mutate(reef_N = ifelse(is.na(reef_N) == T, 0, reef_N),
          basin_N = ifelse(is.na(basin_N) == T, 0, basin_N),
          ratio = reef_N/basin_N) 
+```
+```{r}
+cor.test(basin_reef_join$basin_N, basin_reef_join$reef_N, method = "pearson")
+
 ```
 
 ```{r}
