@@ -107,7 +107,7 @@ conn_treat_p/conn_treat_n
 Correlation between Fiji Water Authoriy estimates and our estimates
 
 ```{r}
-nutri_removal<-read.csv(here("raw_data/Sewage_plants/Nutrient_removal_STP.csv")) %>% 
+nutri_removal<-read.csv(here("output_data/Sewage_plants/Nutrient_removal_STP_allvalues.csv")) %>% 
   mutate(ID = ifelse(STP == "ACS", NA,
                      ifelse(STP == "Deuba", 1,
                             ifelse(STP == "Kinoya", 2,
@@ -149,10 +149,19 @@ wwtp_compare<-full_join(nutri_rm_connected, N_removal, by = c("ID")) %>%
 ```{r}
 wwtp_compare_df<-wwtp_compare %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry)
+  dplyr::select(-geometry) %>% 
+  
 
-write.csv(wwtp_compare_df, here("output_data/Sensitivity/WWTP_compare_nutrients.csv"))
 ```
+
+
+```{r}
+write.csv(wwtp_compare_df, here("output_data/Sensitivity/WWTP_compare_nutrients.csv"))
+
+```
+
+
+
 
 ```{r}
 cor.test(wwtp_compare$N_final*0.001, wwtp_compare$N_eff_actual, method = "pearson")
@@ -280,13 +289,15 @@ all_other<-read.csv(here("output_data/Sensitivity/All_other_nitrogen_treatment_b
 ```
 
 ```{r}
-total_n_surface_high_est<-all_septic %>% 
-  filter(buffer == 100,
-         n_rm2 == 0.1)
+total_n_septic_high_est<-all_septic %>% 
+  filter(buffer == 500,
+         n_rm2 == 0.2)
 
-total_n_surface_high_est2<-all_other %>% 
-  filter(buffer == 100,
-         n_rm2 == 0.1)
+total_n_other_high_est<-all_other %>% 
+  filter(buffer == 500,
+         n_rm2 == 0.8)
+
+total_n_septic_high_est$N_final + total_n_other_high_est$N_final
 ```
 
 ```{r}
