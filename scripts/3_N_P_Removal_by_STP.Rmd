@@ -28,7 +28,7 @@ wwtp_flow<-read.csv(here("raw_data/Sewage_plants/WWTP_flow_data.csv")) %>%
   mutate(flow_ML = as.numeric(flow_ML),
          year = as.numeric(str_remove(year, "X"))) %>% 
   mutate(flow_L = flow_ML*1000000) %>% 
-  filter(year>=2015) %>% 
+  filter(year>=2017) %>% 
   mutate(WWTP2 = ifelse(WWTP == "Votua", "Ba",
                         ifelse(WWTP == "Natabua", "Lautoka",
                                WWTP)))
@@ -64,6 +64,7 @@ for(i in 1:length(stp_files)){
          day = lubridate::day(Date),
          Location = as.character(Location)) %>% 
   filter(year <2020,
+         year>2016,
          grepl('Raw|Maturation', Location)) %>% 
   mutate_if(is.character, str_trim) %>% 
   mutate(Location = ifelse(Location %in% c("Maturation Pond [2]", "Maturation Pond 2","Maturation Pond"," Maturation Pond [2","Maturation 2", "Maturation", "Maturation [Final Effluent]", " Maturation Pond"), "Final Effluent", as.character(Location))) %>% 
@@ -83,6 +84,7 @@ for(i in 1:length(stp_files)){
                                                    ifelse(year ==20, 2020,NA)))))),
          Location = as.character(Location)) %>% 
   filter(year <2020,
+         year>2016,
          grepl('Raw|Maturation', Location)) %>% 
   mutate_if(is.character, str_trim) %>% 
   mutate(Location = ifelse(Location %in% c("Maturation Pond [2]", "Maturation Pond 2","Maturation Pond"," Maturation Pond [2","Maturation 2", "Maturation", "Maturation [Final Effluent]", " Maturation Pond"), "Final Effluent", as.character(Location))) %>% 
@@ -97,6 +99,7 @@ for(i in 1:length(stp_files)){
          Location = as.character(Location),
          Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
   filter(year <2020,
+         year>2016,
          grepl('Raw|Final|Decant', Location)) %>% 
   mutate_if(is.character, str_trim) %>% 
   mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
@@ -116,10 +119,13 @@ for(i in 1:length(stp_files)){
          Location = as.character(Location),
          Location = ifelse(Location == "Secondary Clarifier Effluent", "Final Effluent", as.character(Location))) %>% 
   filter(year <2020,
+         year >2016,
          grepl('Raw|Final|Decant', Location)) %>% 
   mutate_if(is.character, str_trim) %>% 
   mutate(Total.Reactive.Phosphates = as.numeric(as.character(Total.Reactive.Phosphates)))
-  }
+     }
+  
+  test<-stp %>% filter(year == 2016)
   
   stp_flow<-wwtp_flow %>% 
   filter(WWTP2 == name)
@@ -132,12 +138,7 @@ for(i in 1:length(stp_files)){
   summarise(Avg_N = mean(Total.Nitrogen, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
   mutate(Final2 = ifelse(Final>Raw, Raw, Final)) %>% #Deal with values when Final>Raw
-  full_join(., stp_flow, by = "year") %>% 
-  mutate(Final_mg = Final2 * flow_L,
-         Raw_mg = Raw * flow_L,
-         Final_tonnes = Final_mg * 1e-9,
-         Raw_tonnes = Raw_mg * 1e-9,
-         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes) 
+  full_join(., stp_flow, by = "year") 
   
   stp_N<-stp_N %>% 
       filter(!is.na(Raw) == T,
@@ -146,27 +147,32 @@ for(i in 1:length(stp_files)){
 stp_N_month<- stp_N %>% 
   ungroup() %>% 
   group_by(STP, year, month) %>% 
-  summarise(Raw_month = mean(Raw_tonnes, na.rm = T),
-            Final_month = mean(Final_tonnes, na.rm = T)) %>% 
+  summarise(Raw_month = mean(Raw, na.rm = T),
+            Final_month = mean(Final2, na.rm = T)) %>% 
   mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
 
 samples_N<-stp_N %>% 
-  filter(!is.na(Raw_tonnes) == T) %>% 
+  filter(!is.na(Raw) == T | is.na(Final2) == T) %>% 
    group_by(STP, year) %>% 
   summarise(n_samples = length(unique(Date))) %>% 
      mutate(type = "N")
 
-stp_N_year<-stp_N_month %>% 
+stp_N_year<-stp_N %>% 
   ungroup() %>% 
   group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
+  summarise(Raw_year = mean(Raw, na.rm = T),
+            Final_year = mean(Final2, na.rm = T)) %>% 
+  full_join(., stp_flow, by = "year") %>% 
+  mutate(Final_mg = Final_year * flow_L,
+         Raw_mg = Raw_year * flow_L,
+         Final_year_tonnes = Final_mg * 1e-9,
+         Raw_year_tonnes = Raw_mg * 1e-9,
+         remov_eff = (Raw_year_tonnes-Final_year_tonnes)/Raw_year_tonnes) 
 
 stp_N_rm<-stp_N_year %>% 
   group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
+  summarise(Raw = mean(Raw_year_tonnes, na.rm = T),
+            Final = mean(Final_year_tonnes, na.rm = T)) %>% 
   mutate(rm_eff = (Raw-Final)/Raw,
          type = "N")
 
@@ -178,20 +184,15 @@ stp_N_rm<-stp_N_year %>%
   summarise(Avg_N = mean(Total.Reactive.Phosphates, na.rm = T)) %>% 
   pivot_wider(., names_from = Location, values_from = Avg_N) %>% 
  # filter(!Final>Raw) %>% 
- mutate(Final2 = ifelse(Final>Raw, Raw, Final)) %>% #Deal with values when Final>Raw
-  full_join(., stp_flow, by = "year") %>% 
-  mutate(Final_mg = Final2 * flow_L,
-         Raw_mg = Raw * flow_L,
-         Final_tonnes = Final_mg * 1e-9,
-         Raw_tonnes = Raw_mg * 1e-9,
-         remov_eff = (Raw_tonnes-Final_tonnes)/Raw_tonnes) 
+ mutate(Final2 = ifelse(Final>Raw, Raw, Final)) #Deal with values when Final>Raw
+ 
  
    stp_P<-stp_P %>% 
       filter(!is.na(Raw) == T,
-         !is.na(Final) == T) # Remove pairs that don't have both values
+         !is.na(Final2) == T) # Remove pairs that don't have both values
    
    samples_P<-stp_P %>% 
-  filter(!is.na(Raw_tonnes) == T) %>% 
+   filter(!is.na(Raw) == T | is.na(Final2) == T) %>% 
    group_by(STP, year) %>% 
   summarise(n_samples = length(unique(Date))) %>% 
      mutate(type = "P")
@@ -203,20 +204,25 @@ stp_P_month<- stp_P %>%
   ungroup() %>% 
   group_by(STP, year, month) %>% 
   summarise(Raw_month = mean(Raw, na.rm = T),
-            Final_month = mean(Final, na.rm = T)) %>% 
+            Final_month = mean(Final2, na.rm = T)) %>% 
   mutate(rm_eff = (Raw_month-Final_month)/Raw_month)
 
-stp_P_year<-stp_P_month %>% 
+stp_P_year<-stp_P %>% 
   ungroup() %>% 
   group_by(STP, year) %>% 
-  summarise(Raw_year = mean(Raw_month, na.rm = T),
-            Final_year = mean(Final_month, na.rm = T)) %>% 
-  mutate(rm_eff = (Raw_year-Final_year)/Raw_year)
+  summarise(Raw_year = mean(Raw, na.rm = T),
+            Final_year = mean(Final2, na.rm = T)) %>% 
+  full_join(., stp_flow, by = "year") %>% 
+  mutate(Final_mg = Final_year * flow_L,
+         Raw_mg = Raw_year * flow_L,
+         Final_year_tonnes = Final_mg * 1e-9,
+         Raw_year_tonnes = Raw_mg * 1e-9,
+         remov_eff = (Raw_year_tonnes-Final_year_tonnes)/Raw_year_tonnes) 
 
 stp_P_rm<-stp_P_year %>% 
   group_by(STP) %>% 
-  summarise(Raw = mean(Raw_year, na.rm = T),
-            Final = mean(Final_year, na.rm = T)) %>% 
+  summarise(Raw = mean(Raw_year_tonnes, na.rm = T),
+            Final = mean(Final_year_tonnes, na.rm = T)) %>% 
   mutate(rm_eff = (Raw-Final)/Raw,
          type = "P")
 
@@ -231,9 +237,9 @@ all_year<-rbind(all_year, stp_N_year) %>%
 ```{r}
 all_year2<-all_year %>% 
   group_by(STP) %>% 
-  summarise(avg_raw_year = mean(Raw_year),
-            avg_final_year = mean(Final_year),
-            avg_rm_eff = mean(rm_eff))
+  summarise(avg_raw_year = mean(Raw_year_tonnes),
+            avg_final_year = mean(Final_year_tonnes),
+            avg_rm_eff = mean(remov_eff))
 
 all_samples2 <-all_samples %>% 
   group_by(STP, type) %>% 
