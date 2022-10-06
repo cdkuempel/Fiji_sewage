@@ -106,9 +106,16 @@ tourist_p_treat
 
 ```{r}
 # Percentage of total nutrients that Tourism makes up
-tourist_n_treat/(total_n_surface + tourist_n_treat)
+tourist_n_treat/(367.8306 + tourist_n_treat)
 
-tourist_p_treat/(total_p_surface + tourist_p_treat)
+tourist_p_treat/(56.63899 + tourist_p_treat)
+```
+
+```{r}
+tourist_treated %>%
+  group_by(treatment_level) %>% 
+  summarise(total_N = sum(Treated_N, na.rm = T),
+            total_P = sum(Treated_P, na.rm = T))
 ```
 
 Values if leaching is added to septic

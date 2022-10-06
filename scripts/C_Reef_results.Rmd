@@ -63,9 +63,9 @@ nrow(top_90)/nrow(sub_reef_nutri)
 # Reef area affected 
 
 ```{r}
-sum(sub_reef_nutri$area_m2, na.rm = T)*1e-6
+sum(sub_reef_nutri$area_m2, na.rm = T)*1e-6 #area with nutrients
 
-sum(reef_nutri$area_m2, na.rm = T)*1e-6
+sum(reef_nutri$area_m2, na.rm = T)*1e-6 # total reef area
 ```
 
 ```{r}
@@ -78,6 +78,20 @@ sum(reef_nutri$area_m2, na.rm = T)*1e-6
 connected<-st_read(here("output_data/Nutrients_at_pourpoints/Fiji_connected_pourpoints.shp"))
 
 ```
+
+
+```{r}
+treatment<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_treatment.shp")) %>% 
+  mutate(prop = uncnn__/n_reefs)
+
+sub_treatment<-treatment %>% 
+  filter(n_reefs>0)
+
+length(which(treatment$prop>0.5))/nrow(treatment)
+```
+
+
+
 ```{r}
 basin_dat<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp")) %>% 
   as.data.frame() %>% 
@@ -96,6 +110,7 @@ prop_conn<-basin_dat %>%
   mutate(total = sum(Coastal_direct + Coastal_septic + Direct + Septic + Connected),
          prop_unconn = sum(Coastal_direct + Coastal_septic + Direct + Septic)/total)
 ```
+
 ```{r}
 basin_plumes_dat<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp")) 
 

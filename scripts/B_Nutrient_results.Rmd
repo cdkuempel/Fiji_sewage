@@ -90,8 +90,6 @@ connected_n_rm
 connected_p_rm
 ```
 
-
-
 ```{r}
 # Percent of N and P emissions released into environment
 conn_treat_n<-sum(nutri_rm_connected$N_final)
@@ -99,9 +97,6 @@ conn_treat_p<-sum(nutri_rm_connected$P_final)
 
 conn_treat_n/conn_n_sum
 conn_treat_p/conn_p_sum
-
-
-conn_treat_p/conn_treat_n
 ```
 
 Correlation between Fiji Water Authoriy estimates and our estimates
@@ -149,7 +144,7 @@ wwtp_compare<-full_join(nutri_rm_connected, N_removal, by = c("ID")) %>%
 ```{r}
 wwtp_compare_df<-wwtp_compare %>% 
   as.data.frame() %>% 
-  dplyr::select(-geometry) %>% 
+  dplyr::select(-geometry)
   
 
 ```
