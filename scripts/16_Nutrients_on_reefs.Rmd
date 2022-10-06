@@ -138,7 +138,7 @@ for(i in 1:length(all_re)){
   name2<-str_extract(name, "[0-9]+")
   
   bas_n_reefs<-exactextractr::exact_extract(plume, reef_proj, fun = "sum")
-  bas_n_reefs<-plume*reef_ras
+  bas_n_reefs_ras<-plume*reef_ras
   
   bas_n_df<-as.data.frame(bas_n_reefs)
   
