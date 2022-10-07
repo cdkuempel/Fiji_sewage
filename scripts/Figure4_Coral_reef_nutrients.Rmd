@@ -74,7 +74,7 @@ total_points<-st_centroid(total_sf) %>%
 
 title_exp <- expression("Kg/km"^2)
 
-breaks<-c(1,10,100,500,1000)
+breaks<-c(1,10,100,500,980)
 
 p2<-ggplot(data = fiji_basins12) +
   geom_sf(fill = "grey") +
@@ -90,6 +90,7 @@ p2<-ggplot(data = fiji_basins12) +
   theme_void() +
   coord_sf() +
   theme(legend.position = "left") 
+
 p2
 ```
 ```{r}
