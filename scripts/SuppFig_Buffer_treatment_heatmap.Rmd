@@ -161,6 +161,8 @@ all_septic_p2<-all_septic_p %>%
   mutate(P_final = P_total * n_rm,
           z = ifelse(buffer == 35 & round(n_rm,1) == 0.7, TRUE, FALSE),
          n_rm2 = 1-n_rm)
+
+write.csv(all_septic_p2, here("output_data/Sensitivity/All_septic_phosphorus_treatment_buffer.csv"))
 ```
 
 ```{r}
@@ -179,6 +181,7 @@ p_septic_heatmap <- ggplot(data = all_septic_p2, mapping = aes(x = as.factor(n_r
 
 p_septic_heatmap
 ```
+
 ```{r}
 ggsave(here("figures/Supp_P_septic_treat_buffer_sensitivity_heatmap.png"), dpi =300, width = 8, height = 6)
 ```
@@ -207,6 +210,8 @@ all_other_p2<-all_other_p %>%
   mutate(P_final = P_total * n_rm,
           z = ifelse(buffer == 35 & round(n_rm,1) == 0.1, TRUE, FALSE),
          n_rm2 = 1-n_rm)
+
+write.csv(all_other_p2, here("output_data/Sensitivity/All_other_phosphorus_treatment_buffer.csv"))
 ```
 
 ```{r}
