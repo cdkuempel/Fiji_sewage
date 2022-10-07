@@ -28,6 +28,7 @@ t_crs<-"+proj=aea +lat_1=-9 +lat_2=-26 +lat_0=-17 +lon_0=180 +x_0=0 +y_0=0 +ellp
 
 ```{r}
 basin_dat<-st_read(here("output_data/Nutrients_at_pourpoints/All_nutrients_at_pourpoints.shp")) %>% 
+  st_transform(., t_crs) %>% 
   as.data.frame() %>% 
   dplyr::select(-geometry) 
 
@@ -46,7 +47,8 @@ prop_conn<-basin_dat %>%
 ```
 
 ```{r}
-basin_plumes_dat<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp")) 
+basin_plumes_dat<-st_read(here("output_data/Nutrients_at_reefs/Nitrogen_on_reefs_by_basin.shp")) %>% 
+  st_transform(., t_crs)
 
 basin_plumes_dat<-basin_plumes_dat %>% 
   mutate(id = 1:nrow(basin_plumes_dat))
