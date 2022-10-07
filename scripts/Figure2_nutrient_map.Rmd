@@ -99,7 +99,8 @@ septic_nutri<-tm_shape(septic_nutri_basin2) +
                 style = "cont",
                 title = "Nitrogen\n(tonnes)",
                 palette = "-viridis") +
-  tm_layout(title = "Septic") 
+  tm_layout(title = "Septic",
+            title.position = c("center", "TOP")) 
 
 septic_nutri
 ```
@@ -110,7 +111,9 @@ direct_nutri<-tm_shape(direct_nutri_basin2) +
                 style = "cont",
                 title = "Nitrogen\n(tonnes)",
                 palette = "-viridis") +
-  tm_layout(title = "Other") 
+  tm_layout(title = "Other",
+            title.position = c("center", "TOP")) +
+  tm_scale_bar() 
 
 direct_nutri
 ```
@@ -150,8 +153,9 @@ connected_nutri_plot<-tm_shape(basins_diss) +
              palette = "-viridis") +
   tm_text("label",
           auto.placement = 1, 
-          size = 0.5) +
-  tm_layout(title = "Connected") #+
+          size = 1) +
+  tm_layout(title = "Connected",
+            title.position = c("center", "TOP")) #+
   #tm_text("label", size = 1, auto.placement = 1.5, col = "darkblue")
 
 connected_nutri_plot
@@ -175,7 +179,9 @@ tourism_nutri<-tm_shape(basin_tourism) +
                 style = "cont",
                 title = "Nitrogen\n(tonnes)",
                 palette = "-viridis") +
-  tm_layout(title = "Tourism") 
+  tm_layout(title = "Tourism",
+            title.position = c("center", "TOP")) +
+  tm_scale_bar()
 
 tourism_nutri
 ```
@@ -192,18 +198,18 @@ nutri_final
 ```
 
 ```{r}
-tmap_save(nutri_final, here("figures/Nutrient_residential_treatment_map.png"), dpi = 300, width = 10, height = 5)
+tmap_save(nutri_final, here("figures/Nutrient_residential_treatment_map.png"), dpi = 300, width = 15, height = 5)
 ```
 
 
 ```{r}
-nutri_final_all<-tmap_arrange(direct_nutri, septic_nutri, connected_nutri_plot, tourism_nutri, nrow = 1)
+#nutri_final_all<-tmap_arrange(direct_nutri, septic_nutri, connected_nutri_plot, tourism_nutri, nrow = 1)
 
-nutri_final_all
+#nutri_final_all
 ```
 
 ```{r}
-tmap_save(nutri_final_all, here("figures/Nutrient_all_treatment_map.png"), dpi = 300, width = 10, height = 5)
+#tmap_save(nutri_final_all, here("figures/Nutrient_all_treatment_map.png"), dpi = 300, width = 10, height = 5)
 ```
 
 ```{r}
@@ -268,7 +274,8 @@ septic_nutri_p<-tm_shape(septic_nutri_basin2) +
                 style = "cont",
                 title = "Phosphorus\n(tonnes)",
                 palette = "-viridis") +
-  tm_layout(title = "Septic") 
+  tm_layout(title = "Septic",
+            title.position = c("center", "TOP"))
 
 septic_nutri_p
 ```
@@ -277,9 +284,11 @@ septic_nutri_p
 direct_nutri_p<-tm_shape(direct_nutri_basin2) +
     tm_polygons(col = "total_P_tonnes",
                 style = "cont",
-                title = "Nitrogen\n(tonnes)",
+                title = "Phosphorus\n(tonnes)",
                 palette = "-viridis") +
-  tm_layout(title = "Other") 
+  tm_layout(title = "Other",
+            title.position = c("center", "TOP"))  +
+  tm_scale_bar()
 
 direct_nutri_p
 ```
@@ -297,9 +306,10 @@ connected_nutri_plot_p<-tm_shape(basins_diss) +
              border.col = "black", 
              border.lwd = 2, 
              title.shape = "Nitrogen\n(tonnes)", 
-             title.col = "Nitrogen\n(tonnes)",
+             title.col = "Phosphorus\n(tonnes)",
              palette = "-viridis") +
-  tm_layout(title = "Connected") #+
+  tm_layout(title = "Connected",
+            title.position = c("center", "TOP")) #+
   #tm_text("label", size = 1, auto.placement = 1.5, col = "darkblue")
 
 connected_nutri_plot_p
@@ -309,11 +319,15 @@ connected_nutri_plot_p
 tourism_nutri_p<-tm_shape(basin_tourism) +
     tm_polygons(col = "total_P_tonnes",
                 style = "cont",
-                title = "Nitrogen\n(tonnes)",
+                title = "Phosphorus\n(tonnes)",
                 palette = "-viridis") +
-  tm_layout(title = "Tourism") 
+  tm_layout(title = "Tourism",
+            title.position = c("center", "TOP")) 
 
 tourism_nutri_p
+```
+```{r}
+tmap_save(tourism_nutri_p, here("figures/Nutrient_tourism_treatment_phos_map.png"), dpi = 300, width = 10, height = 5)
 ```
 
 ```{r}
@@ -324,4 +338,13 @@ nutri_final_all_p
 
 ```{r}
 tmap_save(nutri_final_all_p, here("figures/Supp_nutrient_all_treatment_map_phosphorus.png"), dpi = 300, width = 10, height = 5)
+```
+
+```{r}
+nutri_final_p<-tmap_arrange(direct_nutri_p, septic_nutri_p, connected_nutri_plot_p, nrow = 1)
+
+nutri_final_p
+```
+```{r}
+tmap_save(nutri_final_p, here("figures/Nutrient_residential_treatment_phosphorus_map.png"), dpi = 300, width = 10, height = 5)
 ```

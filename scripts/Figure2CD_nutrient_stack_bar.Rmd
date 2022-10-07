@@ -94,13 +94,18 @@ nutri_dat2<-nutri_dat %>%
 tonnes_bar2<-ggplot(nutri_dat2, aes(x = Nutrient, y = Effluent, fill = type2)) +
   geom_bar(position = "stack", stat = "identity") +
   theme_minimal() +
-  theme(legend.position="none") +
+ # theme(legend.position="none") +
   ylab("Nutrient load") +
-  scale_fill_viridis_d()
+  scale_fill_viridis_d() +
+  coord_flip() +
+  labs(fill = "Source")
   #scale_fill_manual(values = c("darkred","darkgoldenrod1", "darkorange2", "tan4")) #+
 #  labs(fill = "Source")
 
 tonnes_bar2
+```
+```{r}
+ggsave(here("figures/Residential_treatment_nutrients_bar_chart.png"), width = 6, height = 3, dpi = 300)
 ```
 
 ```{r}
