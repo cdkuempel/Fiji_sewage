@@ -80,7 +80,7 @@ wwtp_compare2<-full_join(actual, estimated) %>%
 
 
 ```{r}
-ggplot(wwtp_compare2, aes(x = Estimated, y = Actual, col = label)) +
+ggplot(wwtp_compare2, aes(x = Actual, y = Estimated, col = label)) +
   geom_point(size = 2) +
   facet_wrap(~type, scales = "free") +
   ylab("Estimated (tonnes)") +
@@ -94,98 +94,53 @@ ggsave(here("figures/Supp_reported_estimated_WWTP_effluent.png"), dpi =300, widt
 ```
 
 
-# Treatment/leaching rate/distance from rivers sensitivity plot
+# Treatment/distance from rivers sensitivity plot
 
 ```{r}
 n_septic_sens<-read.csv(here("output_data/Sensitivity/Septic_treatment_leach_buffer_analysis.csv")) %>% 
-   dplyr::select(buffer, treatment_rate, leach_rate, N_leach) %>% 
-  rename(Sept_N_leach = N_leach)
-
-coastal_n_septic<-read.csv(here("output_data/Sensitivity/Coastal_septic_treatment_leach_buffer_analysis.csv")) 
-
-
-coast_treat_0<-coastal_n_septic %>% 
-  dplyr::select(buffer, leach_rate, N) %>% 
+   dplyr::select(buffer, N) %>% 
+  rename(Sept_N = N) %>% 
   unique() %>% 
-  mutate(treatment_rate = 0,
-         N_leach = N*leach_rate) %>% 
-  dplyr::select(buffer, leach_rate,treatment_rate, N_leach)
+  filter(!buffer %in% c(10,20,30,40,50))
 
-coastal_n_septic <- coastal_n_septic %>% 
-  dplyr::select(buffer, treatment_rate, leach_rate, N_leach)
-
-coastal_n_septic2<-rbind(coastal_n_septic, coast_treat_0) %>% 
-  dplyr::select(buffer, treatment_rate, leach_rate, N_leach) %>% 
-  rename(Coast_N_leach = N_leach)
-
-
-all_septic<-full_join(n_septic_sens, coastal_n_septic2) %>% 
-  mutate(N_leach = Sept_N_leach + Coast_N_leach)
-
-n_direct_sens<-read.csv(here("output_data/Sensitivity/Direct_treatment_leach_buffer_analysis.csv")) %>% 
-  dplyr::select(buffer, treatment_rate, leach_rate, N_leach) %>% 
-  rename(Dir_N_leach = N_leach)
-
-coastal_n_direct<-read.csv(here("output_data/Sensitivity/Coastal_septic_treatment_leach_buffer_analysis.csv"))
-
-direct_coast_treat_0<-coastal_n_direct %>% 
-  dplyr::select(buffer, leach_rate, N) %>% 
+coastal_n_septic<-read.csv(here("output_data/Sensitivity/Coastal_septic_treatment_leach_buffer_analysis.csv")) %>% 
+  dplyr::select(buffer, N) %>% 
+  rename(Coast_N = N) %>% 
   unique() %>% 
-  mutate(treatment_rate = 0,
-         N_leach = N*leach_rate) %>% 
-  dplyr::select(buffer, leach_rate,treatment_rate, N_leach)
+  filter(!buffer %in% c(10,20,30,40,50))
 
-coastal_n_direct<- coastal_n_direct %>% 
-  dplyr::select(buffer, treatment_rate, leach_rate, N_leach)
+all_septic<-full_join(n_septic_sens, coastal_n_septic) %>% 
+  mutate(Coast_N = ifelse(is.na(Coast_N) == T, 0, Coast_N),
+         N_total = Sept_N + Coast_N)
 
-coastal_n_direct2<-rbind(coastal_n_direct, direct_coast_treat_0) %>% 
-  dplyr::select(buffer, treatment_rate, leach_rate, N_leach) %>% 
-  rename(Coast_N_leach = N_leach)
+n_rm_df<-data.frame(buffer = rep(seq(5,55, by = 10),each = 11), n_rm = rep(seq(0,1, 0.1),6))
+n_rm_df2<-data.frame(buffer = rep(seq(100,500, by = 100), each = 11), n_rm = seq(0,1, 0.1))
 
+all_nrm<-rbind(n_rm_df, n_rm_df2)
 
-all_direct<-full_join(n_direct_sens, coastal_n_direct2) %>% 
-  mutate(N_leach = Dir_N_leach + Coast_N_leach)
-  
+all_septic<-full_join(all_nrm, all_septic, by = c("buffer"))
+
+all_septic2<-all_septic %>% 
+  mutate(N_final = N_total * n_rm,
+          z = ifelse(buffer == 35 & n_rm == 0.8, TRUE, FALSE),
+         n_rm2 = 1-n_rm)
+
+write.csv(all_septic2, here("output_data/Sensitivity/All_septic_nitrogen_treatment_buffer.csv"))
 ```
 
-Make heat map of different treatment and leaching rates considering a 50 m buffer
-
-Treatment rate of 0.1 means that 10% of nutrients is removed through treatment
-
-Leach rate of 0.1 means that 10% of nutrients leaches (90% lost), a value of 90% would be 10% of nutrients is lost through leaching
-
-leach2 of 0.1 means that 90% of nutrients leaches (10% lost)
 
 ```{r}
-test<-all_septic %>% 
-  filter(buffer == 35) %>% 
-  mutate(leach2 = 1-leach_rate,
-          add  = round(treatment_rate + leach2,1)) %>% 
-  filter(add == 0.2)
 
-test2<-all_direct %>% 
-  filter(buffer == 35) %>% 
-  mutate(leach2 = 1-leach_rate,
-          add  = round(treatment_rate + leach2,1)) %>% 
-  filter(add == 0.2)
-```
+sub_all_septic<-all_septic2 %>% 
+  filter(buffer<=100)
 
-```{r}
-septic_treat_leach<-all_septic %>% 
-  filter(buffer == 35) %>% 
-   mutate(leach2 = 1-leach_rate,
-          add  = round(treatment_rate + leach2,1),
-     z = ifelse(add == 0.2, TRUE, FALSE))
-```
-
-```{r}
-n_septic_heatmap <- ggplot(data = septic_treat_leach, mapping = aes(x = as.factor(treatment_rate),
-                                                       y = leach2)) +
-  geom_tile(aes(fill = N_leach*0.001)) +
-  geom_text(aes(label = round(N_leach*0.001, 2), color=as.factor(z))) +
+n_septic_heatmap <- ggplot(data = sub_all_septic, mapping = aes(x = as.factor(n_rm2*100),
+                                                       y = as.factor(buffer))) +
+  geom_tile(aes(fill = N_final*0.001)) +
+  geom_text(aes(label = round(N_final*0.001, 2), color=as.factor(z))) +
   scale_color_manual(guide = "none", values = c(`TRUE` = "red", `FALSE` = "black")) +
-  xlab(label = "") + 
-  ylab(label = "Leaching\n(% nutrient loss)") + 
+  xlab(label = "Nutrient removal (%)") + 
+  ylab(label = "Buffer (m)") + 
   theme_bw() + 
   labs(fill="Nitrogen", title = "Septic") + 
   scale_fill_viridis(discrete=FALSE, direction=-1) +
@@ -194,232 +149,167 @@ n_septic_heatmap <- ggplot(data = septic_treat_leach, mapping = aes(x = as.facto
 
 n_septic_heatmap
 ```
-
-
 ```{r}
-#p_septic_heatmap <- ggplot(data = septic_treat_leach, mapping = aes(x = as.factor(treatment_rate),
-#                                                       y = leach2)) +
-#  geom_tile(aes(fill = P_leach*0.001)) +
-#  geom_text(aes(label = round(P_leach*0.001, 2), color=as.factor(z))) +
-#  scale_color_manual(guide = "none", values = c(`TRUE` = "red", `FALSE` = "black")) +
-#  xlab(label = "Treatment\n(%nutrient loss)") + 
-#  ylab(label = "Leaching\n(% nutrient loss)") + 
-#  theme_bw() + 
-#  labs(fill="Phosphorus", title = "Septic") + 
-#  scale_fill_viridis(discrete=FALSE, direction=-1) +
-#  theme(plot.title = element_text(hjust = 0.5))
-  
-
-#p_septic_heatmap
+ggsave(here("figures/Supp_Figure_N_septic_treat_buffer_sensitivity_heatmap.png"), dpi =300, width = 8, height = 6)
 ```
 
 ```{r}
-direct_treat_leach<-all_direct %>% 
-  filter(buffer == 35) %>% 
-   mutate(leach2 = round(1-leach_rate,1),
-          add = treatment_rate + leach2, 
-     z = ifelse(add == 0.2, TRUE, FALSE))
+n_other_sens<-read.csv(here("output_data/Sensitivity/Direct_treatment_leach_buffer_analysis.csv")) %>% 
+   dplyr::select(buffer, N) %>% 
+  rename(Other_N = N) %>% 
+  unique() %>% 
+  filter(!buffer %in% c(10,20,30,40,50))
+
+coastal_n_other<-read.csv(here("output_data/Sensitivity/Coastal_direct_treatment_leach_buffer_analysis.csv")) %>% 
+  dplyr::select(buffer, N) %>% 
+  rename(Coast_N = N) %>% 
+  unique() %>% 
+  filter(!buffer %in% c(10,20,30,40,50))
+
+all_other<-full_join(n_other_sens, coastal_n_other) %>% 
+  mutate(Coast_N = ifelse(is.na(Coast_N) == T, 0, Coast_N),
+         N_total = Other_N + Coast_N)
+
+
+all_other<-full_join(all_nrm, all_other, by = c("buffer"))
+
+all_other2<-all_other %>% 
+  mutate(N_final = N_total * n_rm,
+          z = ifelse(buffer == 35 & n_rm == 0.2, TRUE, FALSE),
+         n_rm2 = 1-n_rm)
+
+write.csv(all_other2, here("output_data/Sensitivity/All_other_nitrogen_treatment_buffer.csv"))
 ```
 
+
+
 ```{r}
-n_direct_heatmap <- ggplot(data = direct_treat_leach, mapping = aes(x = as.factor(treatment_rate),y = leach2)) +
-  geom_tile(aes(fill = N_leach*0.001)) +
-  geom_text(aes(label = round(N_leach*0.001, 2), color=as.factor(z))) +
+sub_all_other<-all_other2 %>% 
+  filter(buffer <=100)
+
+n_other_heatmap <- ggplot(data = sub_all_other, mapping = aes(x = as.factor(n_rm2*100),
+                                                       y = as.factor(buffer))) +
+  geom_tile(aes(fill = N_final*0.001)) +
+  geom_text(aes(label = round(N_final*0.001, 2), color=as.factor(z))) +
   scale_color_manual(guide = "none", values = c(`TRUE` = "red", `FALSE` = "black")) +
-  xlab(label = "") + 
-  ylab(label = "Leaching\n(% nutrient loss)") + 
+  xlab(label = "Nutrient removal (%)") + 
+  ylab(label = "Buffer (m)") + 
   theme_bw() + 
   labs(fill="Nitrogen", title = "Other") + 
+  scale_fill_viridis(discrete=FALSE, direction=-1) +
+  theme(plot.title = element_text(hjust = 0.5)) 
+  
+  
+
+n_other_heatmap
+```
+```{r}
+ggsave(here("figures/Supp_Figure_N_other_treat_buffer_sensitivity_heatmap.png"), dpi =300, width = 8, height = 6)
+```
+
+# Phosphorus
+
+
+```{r}
+p_septic_sens<-read.csv(here("output_data/Sensitivity/Septic_treatment_leach_buffer_analysis.csv")) %>% 
+   dplyr::select(buffer, P) %>% 
+  rename(Sept_P = P) %>% 
+  unique() %>% 
+  filter(!buffer %in% c(10,20,30,40,50))
+
+coastal_p_septic<-read.csv(here("output_data/Sensitivity/Coastal_septic_treatment_leach_buffer_analysis.csv")) %>% 
+  dplyr::select(buffer, P) %>% 
+  rename(Coast_P = P) %>% 
+  unique() %>% 
+  filter(!buffer %in% c(10,20,30,40,50))
+
+all_septic_p<-full_join(p_septic_sens, coastal_p_septic) %>% 
+  mutate(Coast_P = ifelse(is.na(Coast_P) == T, 0, Coast_P),
+         P_total = Sept_P + Coast_P)
+
+
+all_septic_p<-full_join(all_nrm, all_septic_p, by = c("buffer"))
+
+all_septic_p2<-all_septic_p %>% 
+  mutate(P_final = P_total * n_rm,
+          z = ifelse(buffer == 35 & round(n_rm,1) == 0.7, TRUE, FALSE),
+         n_rm2 = 1-n_rm)
+
+write.csv(all_septic_p2, here("output_data/Sensitivity/All_septic_phosphorus_treatment_buffer.csv"))
+```
+
+```{r}
+sub_all_septic_p<-all_septic_p2 %>% 
+  filter(buffer <=100)
+
+p_septic_heatmap <- ggplot(data = sub_all_septic_p, mapping = aes(x = as.factor(n_rm2*100),
+                                                       y = as.factor(buffer))) +
+  geom_tile(aes(fill = P_final*0.001)) +
+  geom_text(aes(label = round(P_final*0.001, 2), color=as.factor(z))) +
+  scale_color_manual(guide = "none", values = c(`TRUE` = "red", `FALSE` = "black")) +
+  xlab(label = "Nutrient removal (%)") + 
+  ylab(label = "Buffer (m)") + 
+  theme_bw() + 
+  labs(fill="Phosphorus", title = "Septic") + 
   scale_fill_viridis(discrete=FALSE, direction=-1) +
   theme(plot.title = element_text(hjust = 0.5))
   
 
-n_direct_heatmap
+p_septic_heatmap
 ```
 
+```{r}
+ggsave(here("figures/Supp_Fig_P_septic_treat_buffer_sensitivity_heatmap.png"), dpi =300, width = 8, height = 6)
+```
 
 ```{r}
-#p_direct_heatmap <- ggplot(data = direct_treat_leach, mapping = aes(x = as.factor(treatment_rate),y = leach2)) +
-#  geom_tile(aes(fill = P_leach*0.001)) +
-#  geom_text(aes(label = round(P_leach*0.001, 2), color=as.factor(z))) +
-#  scale_color_manual(guide = "none", values = c(`TRUE` = "red", `FALSE` = "black")) +
-##  xlab(label = "Treatment\n(%nutrient loss)") + 
-#  ylab(label = "Leaching\n(% nutrient loss)") + 
-#  theme_bw() + 
-#  labs(fill="Phosphorus", title = "Other") + 
-#  scale_fill_viridis(discrete=FALSE, direction=-1) +
-#  theme(plot.title = element_text(hjust = 0.5))
+p_other_sens<-read.csv(here("output_data/Sensitivity/Direct_treatment_leach_buffer_analysis.csv")) %>% 
+   dplyr::select(buffer, P) %>% 
+  rename(Other_P = P) %>% 
+  unique() %>% 
+  filter(!buffer %in% c(10,20,30,40,50))
+
+coastal_p_other<-read.csv(here("output_data/Sensitivity/Coastal_direct_treatment_leach_buffer_analysis.csv")) %>% 
+  dplyr::select(buffer, P) %>% 
+  rename(Coast_P = P) %>% 
+  unique() %>% 
+  filter(!buffer %in% c(10,20,30,40,50))
+
+all_other_p<-full_join(p_other_sens, coastal_p_other) %>% 
+  mutate(Coast_P = ifelse(is.na(Coast_P) == T, 0, Coast_P),
+         P_total = Other_P + Coast_P)
+
+
+all_other_p<-full_join(all_nrm, all_other_p, by = c("buffer"))
+
+all_other_p2<-all_other_p %>% 
+  mutate(P_final = P_total * n_rm,
+          z = ifelse(buffer == 35 & round(n_rm,1) == 0.1, TRUE, FALSE),
+         n_rm2 = 1-n_rm)
+
+write.csv(all_other_p2, here("output_data/Sensitivity/All_other_phosphorus_treatment_buffer.csv"))
+```
+
+```{r}
+sub_all_other_p<-all_other_p2 %>% 
+  filter(buffer <=100)
+
+p_other_heatmap <- ggplot(data = sub_all_other_p, mapping = aes(x = as.factor(n_rm2*100),
+                                                       y = as.factor(buffer))) +
+  geom_tile(aes(fill = P_final*0.001)) +
+  geom_text(aes(label = round(P_final*0.001, 2), color=as.factor(z))) +
+  scale_color_manual(guide = "none", values = c(`TRUE` = "red", `FALSE` = "black")) +
+  xlab(label = "Nutrient removal (%)") + 
+  ylab(label = "Buffer (m)") + 
+  theme_bw() + 
+  labs(fill="Phosphorus", title = "Other") + 
+  scale_fill_viridis(discrete=FALSE, direction=-1) +
+  theme(plot.title = element_text(hjust = 0.5))
   
 
-#p_direct_heatmap
+p_other_heatmap
 ```
 
 ```{r}
-#(n_septic_heatmap + n_direct_heatmap)/(p_septic_heatmap + p_direct_heatmap) + plot_annotation(tag_levels = 'A')
-(n_septic_heatmap + n_direct_heatmap)+ plot_annotation(tag_levels = 'A')
-
-```
-
-```{r}
-ggsave(here("figures/Supp_treat_leach_sensitivity_heatmap.png"), dpi =300, width = 16, height = 8)
-```
-
-# Change in N/P with increasing distance
-
-```{r}
-septic_buffer_dat<-all_septic %>% 
-  filter(treatment_rate == 0.2) %>% 
-  dplyr::select(buffer, leach_rate, N_leach) %>% 
-  mutate(leach2 = 1-leach_rate) %>% 
-  distinct(.) %>% 
-  pivot_longer(., col = c("N_leach"), names_to = "Nutrients") %>% 
-  mutate(value = value * 0.001,
-         type = "Septic") %>% 
-  filter(leach_rate == 0.1) %>% 
-  mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", NA))
-
-direct_buffer_dat<-all_direct %>% 
-  filter(treatment_rate == 0) %>% 
-  dplyr::select(buffer, leach_rate, N_leach) %>% 
-  mutate(leach2 = 1-leach_rate) %>% 
-  distinct(.) %>% 
-  pivot_longer(., col = c("N_leach"), names_to = "Nutrients") %>% 
-  mutate(value = value * 0.001,
-         type = "Other") %>% 
-  filter(leach_rate == 0.1) %>% 
-  mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", NA))
-
-buffer_dat<-rbind(septic_buffer_dat, direct_buffer_dat) %>% 
-  filter(Nutrients == "N") %>% 
-  dplyr::select(buffer, value, type)  %>% 
-  filter(buffer %in% c(15,25,35,45,55,100,200,300,400,500))
-```
-
-
-```{r}
-buffer_sens<-ggplot(buffer_dat, aes(x = buffer, y = value)) +
-  geom_point() +
-  facet_grid(~type) +
-  theme_bw() +
-  xlab("Buffer distance (meters)") +
-  ylab("Nutrients (tonnes)")
-
-buffer_sens
-```
-
-```{r}
-ggsave(here("figures/Supp_buffer_sensitivity_line_graph.png"), dpi =300, width = 7, height = 4)
-```
-
-# Change in N/P with increasing leaching rate
-
-```{r}
-septic_leach_dat<-all_septic %>% 
-  filter(treatment_rate == 0.2) %>% 
-  dplyr::select(buffer, leach_rate, N_leach) %>% 
-  #mutate(leach2 = 1-leach_rate) %>% 
-  distinct(.) %>% 
-  pivot_longer(., col = c("N_leach"), names_to = "Nutrients") %>% 
-  mutate(value = value * 0.001,
-         type = "Septic") %>% 
-  filter(buffer == 35) %>% 
-  mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", NA))
-
-direct_leach_dat<-all_direct %>% 
-  filter(treatment_rate == 0) %>% 
-  dplyr::select(buffer, leach_rate, N_leach) %>% 
-  #mutate(leach2 = 1-leach_rate) %>% 
-  distinct(.) %>% 
-  pivot_longer(., col = c("N_leach"), names_to = "Nutrients") %>% 
-  mutate(value = value * 0.001,
-         type = "Other") %>% 
-  filter(buffer == 35) %>% 
-  mutate(Nutrients = ifelse(Nutrients == "N_leach", "N"))
-
-leach_dat<-rbind(septic_leach_dat, direct_leach_dat)
-```
-
-
-
-```{r}
-leach_sens<-ggplot(leach_dat, aes(x = leach_rate, y = value)) +
-  geom_point() +
-  facet_wrap(~type) +
-  theme_bw() +
-  xlab("Leaching rate (%)") +
-  ylab("Nutrients (tonnes)") 
-
-leach_sens
-```
-
-# Change in N/P with increasing treatment
-
-```{r}
-septic_treat_dat<-all_septic %>% 
-  filter(leach_rate == 0.9) %>% 
-   # mutate(leach2 = 1-leach_rate) %>% 
-  dplyr::select(buffer, treatment_rate, N_leach) %>% 
-  distinct(.) %>% 
-  pivot_longer(., col = c("N_leach"), names_to = "Nutrients") %>% 
-  mutate(value = value * 0.001,
-         type = "Septic") %>% 
-  filter(buffer == 50) %>% 
-  mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", NA))
-
-direct_treat_dat<-all_direct %>% 
-  filter(leach_rate == 0.9) %>% 
- # mutate(leach2 = 1-leach_rate) %>% 
-  dplyr::select(buffer, treatment_rate, N_leach) %>% 
-  distinct(.) %>% 
-  pivot_longer(., col = c("N_leach"), names_to = "Nutrients") %>% 
-  mutate(value = value * 0.001,
-         type = "Other") %>% 
-  filter(buffer == 50) %>% 
-  mutate(Nutrients = ifelse(Nutrients == "N_leach", "N", NA))
-
-treat_dat<-rbind(septic_treat_dat, direct_treat_dat)
-```
-
-
-
-```{r}
-treat_sens<-ggplot(treat_dat, aes(x = treatment_rate, y = value)) +
-  geom_point() +
-  facet_wrap(~type) +
-  theme_bw() +
-  xlab("Treatment rate (%)") +
-  ylab("Nutrients (tonnes)") 
-
-treat_sens
-```
-
-```{r}
-buffer_sens/leach_sens/treat_sens + plot_annotation(tag_levels = 'A')
-```
-
-```{r}
-ggsave(here("figures/Supp_leach_buffer_treat_sensitivity_line_graph.png"), dpi =300, width = 10, height = 15)
-```
-
-
-# Relationship between the proportion of hotels and proporiton of visitors in each Tikina
-
-```{r}
-hotel_prop<-read.csv(here("tables/Hotels_rooms_visitors_Fiji.csv"))
-
-cor.test(hotel_prop$Prop_visitors, hotel_prop$Prop_hotels, method = "pearson") # highly positively correlated
-```
-
-```{r}
-ggplot(hotel_prop, aes(x = Prop_visitors, y = Prop_hotels, label = TIKINA)) +
-  geom_point(size = 2) +
-  geom_text_repel() +
-  ylab("Proportion of hotels") +
-  xlab("Proportion of visitors") +
-  stat_smooth(method = "lm", col = "black", linetype = "dashed") +
-  theme_bw() #+
-  #labs(colour="Tikina")
-```
-```{r}
-ggsave(here("figures/Supp_prop_hotels_visitors.png"), dpi =300, width = 8, height = 5,)
+ggsave(here("figures/Supp_P_other_treat_buffer_sensitivity_heatmap.png"), dpi =300, width = 8, height = 6)
 ```
