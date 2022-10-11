@@ -118,60 +118,31 @@ pop_basin2<-cbind(fiji_basins, pop_basin)
 
 
 # Plot
-
 ```{r}
-mytheme <- theme(text = element_text(family = 'Avenir')
-                 ,panel.grid.major = element_line(color = '#cccccc' 
-                                                  ,linetype = 'dashed'
-                                                  ,size = .3
-                                                  )
-                 ,panel.background = element_rect(fill = 'aliceblue')
-                 ,plot.title = element_text(size = 32)
-                 ,plot.subtitle = element_text(size = 14)
-                 ,axis.title = element_blank()
-                 ,axis.text = element_text(size = 10))
+tmap_pop<-tm_shape(pop_basin2) +
+    tm_polygons(col = "pop_basin",
+                style = "cont",
+                title = "Population",
+                palette = "-viridis") +
+  tm_scale_bar() +
+  tm_shape(crop_tik2) +
+  tm_borders() +
+  tm_text("label",
+          auto.placement = 0.1,
+          size = 1,
+          just = "top",
+          bg.color = "white",
+          bg.alpha = 0.7) #+
+ # tm_shape(wwtp2) +
+ # tm_dots() #+
+ # tm_text("wwtp_label",
+#          size = 0.7,
+#          just = c("bottom", "left")) 
 
-```
-
-
-```{r}
-
-#threshold<-
-
-#geom_text(aes(x = xpos, y = ypos, label = ifelse(percent>threshold,percent(percent, accuracy = 0.1),"")), hjust = "outward", nudge_x  = 0.2, size = 7.5) + 
-#    geom_text_repel(aes(x = xpos, y = ypos, label = ifelse(percent<threshold, percent(percent, accuracy = 0.1), "")), nudge_x  = 0.2, size = 7.5)+ 
-
-    
-ggplot(crop_tik2) +
-  geom_sf(lwd = 0.1) +
-    geom_sf(data = pop_basin2, aes(fill = pop_basin/10000)) +
- # geom_sf_label(aes(label = ifelse(label == "Ba", NA, label, position=position_jitter(width=1,height=1)))) +
- # geom_sf_label_repel(aes(label = ifelse(label == "Ba", NA, label)),
-#                      force = 1,
-#                      size = 3) +
-                    #  force_pull = 2,
-                    #  nudge_x = 0, 
-                    #  nudge_y = -2, 
-                    #  max.overlaps = 10,
-                     # size = 3.5,
-                      #min.segment.length = 1) +
-  geom_sf_text_repel(data = wwtp2, aes(label = wwtp_label),
-                      size = 3.5) +
-                    # nudge_y = 3)+#,
-                    # nudge_x = 4) +
-  geom_sf(data = wwtp2) +
-  coord_sf(xlim = c(-400000.2, 55042.03), ylim = c(-300593.7 , 147701.7 ), expand = FALSE) +
-  mytheme +
- # scale_fill_manual(values = c("#71639c", "#4d919f")) +
-  scale_fill_viridis_c(direction = -1) +
-  labs(fill = "Population (10,000)") +
- # theme(legend.position = "bottom") +
-  scale_alpha(guide = 'none')
+tmap_pop
 ```
 
 ```{r}
-ggsave(here("figures/Fig1_Study_Area.png"),dpi = 300, width = 5, height = 5)
+tmap_save(tmap_pop, here("figures/Fig1_Study_Area.png"),dpi = 300, width = 5, height = 5)
 ```
-
-
 
