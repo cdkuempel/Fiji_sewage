@@ -56,22 +56,48 @@ other_35<-other %>%
   filter(buffer == 35) %>% 
   mutate(type = "Other")
 
+#Septic N = 20-80
+#Septic P = 30-100
+
+#Other N = 80-98%
+#Other P = 99%
+
 all<-rbind(septic_35, other_35) %>% 
-  mutate(points = ifelse(type == "Septic" & Nutrient == "Nitrogen" & n_rm == 0.8, "yes",
-                         ifelse(type == "Septic" & Nutrient == "Phosphorus" & n_rm == 0.7, "yes", 
-                                ifelse(type == "Other" & Nutrient == "Nitrogen" & n_rm == 0.2, "yes", 
-                                       ifelse(type == "Other" & Nutrient == "Phosphorus" & n_rm == 0, "yes", NA)))))
+  mutate(Removal = ifelse(type == "Septic" & Nutrient == "Nitrogen" & n_rm == 0.8, "Lower",
+                         ifelse(type == "Septic" & Nutrient == "Phosphorus" & n_rm == 0.7, "Lower", 
+                                ifelse(type == "Other" & Nutrient == "Nitrogen" & n_rm == 0.2, "Lower", 
+                                       ifelse(type == "Other" & Nutrient == "Phosphorus" & n_rm == 0, "Lower",
+                                              ifelse(type == "Septic" & Nutrient == "Nitrogen" & n_rm == 0.2, "Upper",
+                                                     ifelse(type == "Septic" & Nutrient == "Phosphorus" & n_rm == 0, "Upper", 
+                                                            ifelse(type == "Other" & Nutrient == "Nitrogen" & n_rm == 0, "Upper", 
+                                                                   ifelse(type == "Other" & Nutrient == "Phosphorus" & n_rm == 0, "Upper", NA)))))))))
+
 
 sub<-all %>% 
-  filter(points == "yes")
+  filter(Removal %in% c("Upper", "Lower"))
+```
+
+# Adjust values to match those of MS
 
 
+
+```{r}
+#all2<-all %>% 
+#  mutate(Total_adj = ifelse(Nutrient == "Nitrogen" & type == "Septic" & n_rm >0.8, NA, as.numeric(Total)),
+ #        Total_adj = ifelse(Nutrient == "Nitrogen" & type == "Septic" & n_rm <0.2, NA, as.numeric(Total_adj)),
+ #        Total_adj = ifelse(Nutrient == "Phosphorus" & type == "Septic" & n_rm >0.7, NA, as.numeric(Total_adj)),
+ #        Total_adj = ifelse(Nutrient == "Phosphorus" & type == "Septic" & n_rm <0.3, NA, as.numeric(Total_adj)),
+ #        Total_adj = ifelse(Nutrient == "Nitrogen" & type == "Other" & n_rm <0.2, NA, as.numeric(Total_adj)),
+ #        Total_adj = ifelse(Nutrient == "Phosphorus" & type == "Other" & n_rm !=0, NA, as.numeric(Total_adj)))
+
+#sub2<-all2 %>% 
+#  filter(points == "yes")
 ```
 
 ```{r}
 ggplot(all, aes(x = (1-n_rm)*100, y = Total*0.001, col = Nutrient)) +
   geom_line() +
-  geom_point(data = sub, aes(x = (1-n_rm)*100, y = Total*0.001))+
+  geom_point(data = sub, aes(x = (1-n_rm)*100, y = Total*0.001, shape = Removal), size = 4)+
   facet_grid(~type, scales = "free") +
   theme_bw() +
   ylab("Nutrient load\n(tonnes)") +
