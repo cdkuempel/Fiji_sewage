@@ -20,5 +20,18 @@ Code Workflow
 13. Tourism_nutrient_pollution.Rmd
 14. ACA_prep.Rmd
 15. Nutrients_on_reefs.Rmd
+16. A_Population_results.Rmd
+17. B_Nutrient_results.Rmd
+18. C_Reef_results.Rmd
+19. D_Tourism_results.Rmd
+20. Figure1_Study_area.Rmd
+21. Figure2_nutrient_map-Rmd
+22. Figure2CD_nutrient_stack_bar.Rmd
+23. Fig3_Nutrient_removal_sensitivity.Rmd
+24. Figure4_Coral_reef_nutrients.Rmd
+25. Figure5_Basin_discharge_v_reefs.Rmd
+26. Supplemental_Tables.Rmd
+27. Supplementary_Figures.Rmd
+
 
 
