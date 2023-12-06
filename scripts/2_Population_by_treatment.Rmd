@@ -43,14 +43,6 @@ The human settlement footprint with population allocated has been converted into
 
 
 ```{r}
-pop_ras<-raster(here("raw_data/Population/fji_population_grid_2020/FJI_Pop_Grid_2020.tif"))
-```
-
-```{r}
-gdalwarp(srcfile ="/home/kuempel/Fiji_sewage/raw_data/Population/fji_population_grid_2020/FJI_Pop_Grid_2020.tif", dstfile = "/home/kuempel/Fiji_sewage/projected_data/Population/FJI_Pop_Grid_proj.tif", s_srs = "+proj=merc +lon_0=150 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs", t_srs = t_crs, r = "bilinear", overwrite = T)
-```
-
-```{r}
 pop_ras_proj<-raster(here("projected_data/Population/FJI_Pop_Grid_proj.tif"))
 
 pop_ras_proj<-setMinMax(pop_ras_proj)

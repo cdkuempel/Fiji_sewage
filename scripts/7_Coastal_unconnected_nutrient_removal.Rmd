@@ -92,9 +92,9 @@ diff<-st_difference(coast, shpA_remaining)
 
 diff_ras<-fasterize(diff, N_cell_direct)
 
-st_write(diff, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".shp"), delete_layer = T)
+st_write(diff, paste0(here("Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".shp")), delete_layer = T)
 
-writeRaster(diff_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".tif"), overwrite = T)
+writeRaster(diff_ras, paste0(here("Fiji_sewage/output_data/Coast/buffers/buffer_coast_",x,".tif")), overwrite = T)
 
 }
 ```
@@ -188,11 +188,11 @@ buffer_N_P<-function(x){
     dplyr::select(ID, N, P, MAIN_BAS)
   
   
-  write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_N_P_", name,"_per_basin_",num,"_buff.csv"))
+  write.csv(basins_nutri_df, paste0(here("Fiji_sewage/output_data/Nutrients/buffers/Coast_N_P_", name,"_per_basin_",num,"_buff.csv")))
   
-  writeRaster(N, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_N_", name,"_per_basin_",num,"_buff.tif"), overwrite = T)
+  writeRaster(N, paste0(here("Fiji_sewage/output_data/Nutrients/buffers/Coast_N_", name,"_per_basin_",num,"_buff.tif")), overwrite = T)
   
-  writeRaster(P, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/Coast_P_", name,"_per_basin_",num,"_buff.tif"), overwrite = T)
+  writeRaster(P, paste0(herE("Fiji_sewage/output_data/Nutrients/buffers/Coast_P_", name,"_per_basin_",num,"_buff.tif")), overwrite = T)
 
   }
 

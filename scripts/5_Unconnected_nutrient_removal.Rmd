@@ -78,7 +78,7 @@ buffer_rivers<-st_buffer(crop_rivers, dist = x) %>%
 
 buffer_ras<-fasterize(buffer_rivers, N_cell_septic)
 
-writeRaster(buffer_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Rivers/buffers/buffer_rivers_",x,".tif"),overwrite = T)
+writeRaster(buffer_ras, paste0(here("Fiji_sewage/output_data/Rivers/buffers/buffer_rivers_",x,".tif")),overwrite = T)
 
 }
 
@@ -96,7 +96,7 @@ buffer_rivers<-st_buffer(crop_rivers, dist = x) %>%
 
 buffer_ras<-fasterize(buffer_rivers, N_cell_septic)
 
-writeRaster(buffer_ras, paste0("/home/kuempel/Fiji_sewage/output_data/Rivers/buffers/buffer_rivers_",x,".tif"),overwrite = T)
+writeRaster(buffer_ras, paste0(here("Fiji_sewage/output_data/Rivers/buffers/buffer_rivers_",x,".tif")),overwrite = T)
 
 }
 
@@ -135,7 +135,7 @@ buffer_N_P<-function(x){
     dplyr::select(ID, N, P, MAIN_BAS)
   
   
-  write.csv(basins_nutri_df, paste0("/home/kuempel/Fiji_sewage/output_data/Nutrients/buffers/N_P_", name,"_per_basin_",num,"_buff.csv"))
+  write.csv(basins_nutri_df, paste0(here("Fiji_sewage/output_data/Nutrients/buffers/N_P_", name,"_per_basin_",num,"_buff.csv")))
 
   }
 
